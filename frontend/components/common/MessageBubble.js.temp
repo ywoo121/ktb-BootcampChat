@@ -1,0 +1,223 @@
+import { forwardRef } from 'react';
+import { Avatar } from '@goorm-dev/vapor-components';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import remarkEmoji from 'remark-emoji';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { tomorrow } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { CheckCheck, Check } from 'lucide-react';
+
+const MessageContent = ({ content }) => {
+  if (typeof content !== 'string') {
+    return String(content);
+  }
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkBreaks, remarkEmoji]}
+      components={{
+        code({ node, inline, className, children, ...props }) {
+          const match = /language-(\w+)/.exec(className || '');
+          return !inline && match ? (
+            <SyntaxHighlighter
+              style={tomorrow}
+              language={match[1]}
+              PreTag="div"
+              className="rounded-lg text-sm my-2"
+              {...props}
+            >
+              {String(children).replace(/\n$/, '')}
+            </SyntaxHighlighter>
+          ) : (
+            <code className="rounded px-1.5 py-0.5 text-sm bg-black/10 dark:bg-white/10" {...props}>
+              {children}
+            </code>
+          );
+        },
+        // 링크 처리
+        a: ({ node, children, href, ...props }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline"
+            {...props}
+          >
+            {children}
+          </a>
+        ),
+        // 이미지 처리
+        img: ({ node, src, alt, ...props }) => (
+          <img
+            src={src}
+            alt={alt}
+            className="max-w-full rounded-lg"
+            loading="lazy"
+            onError={(e) => {
+              e.target.src = '/placeholder-image.png';
+            }}
+            {...props}
+          />
+        ),
+        // 테이블 처리
+        table: ({ node, children, ...props }) => (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700" {...props}>
+              {children}
+            </table>
+          </div>
+        )
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+};
+
+const ReadStatus = ({ isRead, readBy }) => {
+  if (!readBy || readBy.length === 0) return null;
+
+  return (
+    <div className="read-status">
+      {isRead ? (
+        <CheckCheck size={14} className="text-green-500" />
+      ) : (
+        <Check size={14} className="text-white-400" />
+      )}
+    </div>
+  );
+};
+
+const MessageBubble = ({ 
+  content,
+  sender,
+  timestamp,
+  isLast,
+  isMe,
+  isSystem,
+  isAI,
+  isSending,
+  isError,
+  readBy,
+  onRetry,
+  mentions = [],
+  className,
+  children
+}) => {
+  if (isSystem) {
+    return (
+      <div className="system-message">
+        {typeof content === 'string' ? content : String(content)}
+      </div>
+    );
+  }
+
+  const messageTime = new Date(timestamp).toLocaleTimeString('ko-KR', {
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: true
+  });
+
+  const messageClasses = [
+    'message',
+    isLast && 'last',
+    isError && 'error',
+    isSending && 'sending'
+  ].filter(Boolean).join(' ');
+
+  const messageGroupClasses = [
+    'messages',
+    isMe ? 'mine' : 'yours'
+  ].filter(Boolean).join(' ');
+
+  // 멘션된 텍스트 강조 처리
+  const renderContent = () => {
+    if (!mentions.length || typeof content !== 'string') {
+      return children || <MessageContent content={content} />;
+    }
+
+    let renderedContent = content;
+    mentions.forEach(mention => {
+      const regex = new RegExp(`@${mention}`, 'g');
+      renderedContent = renderedContent.replace(
+        regex,
+        `<span class="mention">@${mention}</span>`
+      );
+    });
+
+    return (
+      <div 
+        dangerouslySetInnerHTML={{ __html: renderedContent }}
+        className="message-text"
+      />
+    );
+  };
+
+  return (
+    <div className={messageGroupClasses}>
+      {!isMe && (
+        <div className="avatar-wrapper">
+          <Avatar
+            size="sm"
+            color={isAI ? "info" : "secondary"}
+            className="ring-1 ring-white/10"
+          >
+            {isAI ? 'AI' : sender?.name?.[0]?.toUpperCase() || '?'}
+          </Avatar>
+        </div>
+      )}
+      <div className="message-group">
+        {!isMe && sender?.name && !isAI && (
+          <div className="message-sender">
+            {sender.name}
+          </div>
+        )}
+        <div className={messageClasses}>
+          {renderContent()}
+          {isError && (
+            <button 
+              onClick={onRetry}
+              className="retry-button"
+              aria-label="메시지 재전송"
+            >
+              재전송
+            </button>
+          )}
+        </div>
+        <div className="message-info">
+          <span className="message-time">
+            {messageTime}
+          </span>
+          {isMe && <ReadStatus isRead={readBy?.length > 0} readBy={readBy} />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 마크다운 지원을 위한 래퍼 컴포넌트
+const MarkdownBubble = forwardRef(({ content, ...props }, ref) => {
+  return (
+    <MessageBubble {...props} ref={ref}>
+      <MessageContent content={content} />
+    </MessageBubble>
+  );
+});
+
+MarkdownBubble.displayName = 'MarkdownBubble';
+
+MessageBubble.defaultProps = {
+  isLast: false,
+  isMe: false,
+  isSystem: false,
+  isAI: false,
+  isSending: false,
+  isError: false,
+  mentions: [],
+  readBy: [],
+  onRetry: () => {}
+};
+
+export default MessageBubble;
+export { MarkdownBubble };

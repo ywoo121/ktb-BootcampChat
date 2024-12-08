@@ -1,0 +1,26 @@
+import axios from 'axios';
+
+class AIService {
+  setAIProfile(profile) {
+    return axios.post(process.env.NEXT_PUBLIC_API_URL + '/api/ai/profile', profile, {
+      headers: {
+        'x-auth-token': this.getToken(),
+      },
+    });
+  }
+
+  getAIProfile() {
+    return axios.get(process.env.NEXT_PUBLIC_API_URL + '/api/ai/profile', {
+      headers: {
+        'x-auth-token': this.getToken(),
+      },
+    }).then(res => res.data.aiProfile);
+  }
+
+  getToken() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    return user ? user.token : '';
+  }
+}
+
+export default new AIService();

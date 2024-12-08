@@ -1,0 +1,31 @@
+// frontend/components/ValidationErrors.js
+import React from 'react';
+import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
+
+const ValidationErrors = ({ errors, type = 'danger' }) => {
+  if (!errors || errors.length === 0) return null;
+
+  const getIcon = () => {
+    switch (type) {
+      case 'warning':
+        return <AlertTriangle size={16} />;
+      case 'info':
+        return <Info size={16} />;
+      default:
+        return <AlertCircle size={16} />;
+    }
+  };
+
+  return (
+    <div className={`validation-errors alert alert-${type} mb-3`}>
+      {errors.map((error, index) => (
+        <div key={index} className="validation-error-item">
+          {getIcon()}
+          <span>{error.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default ValidationErrors;

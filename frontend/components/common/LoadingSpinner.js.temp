@@ -1,0 +1,28 @@
+import React from 'react';
+import { Spinner } from '@goorm-dev/vapor-components';
+
+export const LoadingSpinner = ({
+  size = 'md',
+  color = 'primary',
+  className = '',
+  text = '로딩 중...'
+}) => (
+  <div 
+    className={`flex items-center justify-center p-8 space-y-4 flex-col ${className}`}
+    role="status"
+    aria-live="polite"
+  >
+    <Spinner 
+      size={size} 
+      color={color} 
+    />
+    {text && (
+      <span className="text-sm text-gray-500">
+        {text}
+      </span>
+    )}
+    <span className="sr-only">로딩 중</span>
+  </div>
+);
+
+export default LoadingSpinner;

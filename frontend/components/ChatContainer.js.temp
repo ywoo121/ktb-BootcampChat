@@ -1,0 +1,17 @@
+// frontend/components/ChatContainer.js
+import React from 'react';
+
+const ChatContainer = React.forwardRef(({ children, ...props }, ref) => (
+  <div 
+    ref={ref} 
+    className="chat-container" 
+    tabIndex="0"
+    {...props}
+  >
+    {children}
+  </div>
+));
+
+ChatContainer.displayName = 'ChatContainer';
+
+export default ChatContainer;

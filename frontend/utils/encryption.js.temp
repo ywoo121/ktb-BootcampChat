@@ -1,0 +1,157 @@
+// frontend/utils/encryption.js
+import CryptoJS from 'crypto-js';
+
+export class Encryption {
+  static getEncryptionKey() {
+    const key = process.env.NEXT_PUBLIC_ENCRYPTION_KEY;
+    if (!key) {
+      console.warn('Encryption key not found in environment variables');
+      return 'default-key-for-development-only';
+    }
+    return key;
+  }
+
+  static getSalt() {
+    const salt = process.env.NEXT_PUBLIC_PASSWORD_SALT;
+    if (!salt) {
+      console.warn('Password salt not found in environment variables');
+      return 'default-salt-for-development-only';
+    }
+    return salt;
+  }
+
+  static encrypt(text) {
+    if (!text) return text;
+    try {
+      return CryptoJS.AES.encrypt(
+        text.toString(),
+        this.getEncryptionKey()
+      ).toString();
+    } catch (error) {
+      console.error('Encryption error:', error);
+      throw new Error('암호화 중 오류가 발생했습니다.');
+    }
+  }
+
+  static decrypt(ciphertext) {
+    if (!ciphertext) return ciphertext;
+    try {
+      const bytes = CryptoJS.AES.decrypt(
+        ciphertext.toString(),
+        this.getEncryptionKey()
+      );
+      return bytes.toString(CryptoJS.enc.Utf8);
+    } catch (error) {
+      console.error('Decryption error:', error);
+      throw new Error('복호화 중 오류가 발생했습니다.');
+    }
+  }
+
+  static hashPassword(password) {
+    if (!password) throw new Error('비밀번호가 필요합니다.');
+    
+    try {
+      // PBKDF2 (Password-Based Key Derivation Function 2)
+      return CryptoJS.PBKDF2(
+        password,
+        this.getSalt(),
+        {
+          keySize: 256/32, // 256 비트 키 생성
+          iterations: 10000  // 반복 횟수
+        }
+      ).toString();
+    } catch (error) {
+      console.error('Password hashing error:', error);
+      throw new Error('비밀번호 해싱 중 오류가 발생했습니다.');
+    }
+  }
+
+  static secureCompare(a, b) {
+    // 타이밍 공격 방지를 위한 상수 시간 비교
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    if (a.length !== b.length) return false;
+    
+    return CryptoJS.SHA256(a).toString() === CryptoJS.SHA256(b).toString();
+  }
+
+  // 안전한 난수 생성
+  static generateRandomString(length = 32) {
+    const randomBytes = CryptoJS.lib.WordArray.random(length);
+    return randomBytes.toString(CryptoJS.enc.Hex);
+  }
+
+  // 데이터 무결성 검증을 위한 HMAC 생성
+  static generateHMAC(data) {
+    if (!data) return null;
+    return CryptoJS.HmacSHA256(
+      JSON.stringify(data),
+      this.getEncryptionKey()
+    ).toString();
+  }
+
+  // 중요 데이터 전송을 위한 페이로드 암호화
+  static encryptPayload(data) {
+    if (!data) return null;
+
+    const timestamp = Date.now();
+    const nonce = this.generateRandomString(16);
+
+    const payload = {
+      data,
+      timestamp,
+      nonce
+    };
+
+    const encrypted = this.encrypt(JSON.stringify(payload));
+    const hmac = this.generateHMAC(payload);
+
+    return {
+      encrypted,
+      hmac,
+      timestamp,
+      nonce
+    };
+  }
+
+  // 암호화된 페이로드 검증 및 복호화
+  static decryptPayload(encryptedPayload) {
+    if (!encryptedPayload || !encryptedPayload.encrypted || !encryptedPayload.hmac) {
+      throw new Error('유효하지 않은 암호화 페이로드입니다.');
+    }
+
+    try {
+      const decrypted = JSON.parse(this.decrypt(encryptedPayload.encrypted));
+      
+      // HMAC 검증
+      const calculatedHmac = this.generateHMAC({
+        data: decrypted.data,
+        timestamp: decrypted.timestamp,
+        nonce: decrypted.nonce
+      });
+
+      if (!this.secureCompare(calculatedHmac, encryptedPayload.hmac)) {
+        throw new Error('데이터가 변조되었습니다.');
+      }
+
+      // 타임스탬프 검증 (5분 이내)
+      if (Date.now() - decrypted.timestamp > 5 * 60 * 1000) {
+        throw new Error('만료된 데이터입니다.');
+      }
+
+      return decrypted.data;
+    } catch (error) {
+      console.error('Payload decryption error:', error);
+      throw new Error('페이로드 복호화 중 오류가 발생했습니다.');
+    }
+  }
+}
+
+// 환경 변수 유효성 검사
+(() => {
+  if (!process.env.NEXT_PUBLIC_ENCRYPTION_KEY) {
+    console.warn('WARNING: NEXT_PUBLIC_ENCRYPTION_KEY is not set in environment variables');
+  }
+  if (!process.env.NEXT_PUBLIC_PASSWORD_SALT) {
+    console.warn('WARNING: NEXT_PUBLIC_PASSWORD_SALT is not set in environment variables');
+  }
+})();

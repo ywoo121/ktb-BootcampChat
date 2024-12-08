@@ -1,0 +1,43 @@
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import authService from '../services/authService';
+
+const AuthErrorHandler = ({ children }) => {
+  const router = useRouter();
+
+  useEffect(() => {
+    const handleAuthError = async (error) => {
+      if (error.message?.includes('토큰') || error.response?.status === 401) {
+        try {
+          const newToken = await authService.refreshToken();
+          if (newToken) {
+            window.location.reload();
+            return;
+          }
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+          authService.logout();
+          router.push({
+            pathname: '/',
+            query: { 
+              redirect: router.asPath,
+              error: '세션이 만료되었습니다. 다시 로그인해주세요.' 
+            }
+          });
+        }
+      }
+    };
+
+    window.addEventListener('unhandledrejection', (event) => {
+      handleAuthError(event.reason);
+    });
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleAuthError);
+    };
+  }, [router]);
+
+  return <>{children}</>;
+};
+
+export default AuthErrorHandler;
