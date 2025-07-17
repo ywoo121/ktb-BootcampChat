@@ -1,16 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/router';
-import { Card } from '@goorm-dev/vapor-core';
-import { 
-  Button, 
-  Input, 
-  Text,
-  Alert,
-  Label
-} from '@goorm-dev/vapor-components';
-import { AlertCircle, Info, Clock, LockKeyhole, Mail, WifiOff } from 'lucide-react';
+import { ErrorCircleIcon, InfoIcon, TimeIcon, LockIcon, MailIcon, NetworkIcon } from '@vapor-ui/icons';
 import authService from '../services/authService';
 import { withoutAuth } from '../middleware/withAuth';
+
+// Vapor UI 컴포넌트들을 개별적으로 import
+import { Button, TextInput, Card, Text, Callout } from '@vapor-ui/core';
+
+// Layout 컴포넌트들을 개별적으로 import
+import { Flex, Center, Box, Stack } from '../components/ui/Layout';
+
+// 컴포넌트 검증 (개발 환경에서만)
+if (process.env.NODE_ENV === 'development') {
+  console.log('=== Component Check ===');
+  console.log('Button:', Button);
+  console.log('TextInput:', TextInput);
+  console.log('TextInput.Root:', TextInput?.Root);
+  console.log('TextInput.Label:', TextInput?.Label);
+  console.log('TextInput.Input:', TextInput?.Input);
+  console.log('Card:', Card);
+  console.log('Card.Root:', Card?.Root);
+  console.log('Card.Body:', Card?.Body);
+  console.log('Text:', Text);
+  console.log('Callout:', Callout);
+  console.log('Flex:', Flex);
+  console.log('Center:', Center);
+  console.log('Box:', Box);
+  console.log('===================');
+}
 
 const Login = () => {
   const [formData, setFormData] = useState({ 
@@ -19,30 +36,67 @@ const Login = () => {
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [serverStatus, setServerStatus] = useState({ checking: true, connected: false });
+  const [serverStatus, setServerStatus] = useState({ 
+    checking: typeof window !== 'undefined', // 클라이언트에서만 체크
+    connected: false 
+  });
   const router = useRouter();
   const { redirect } = router.query;
 
   // 서버 연결 상태 확인
   useEffect(() => {
+    // 클라이언트 사이드에서만 실행되도록 보장
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const checkServerConnection = async () => {
       try {
+        console.log('Checking server connection...');
         await authService.checkServerConnection();
+        console.log('Server connection successful');
         setServerStatus({ checking: false, connected: true });
       } catch (error) {
         console.error('Server connection check failed:', error);
-        setServerStatus({ checking: false, connected: false });
-        setError({
-          type: 'error',
-          title: '서버 연결 실패',
-          message: '서버와 연결할 수 없습니다.',
-          suggestion: '인터넷 연결을 확인하고 잠시 후 다시 시도해주세요.',
-          Icon: WifiOff
-        });
+        
+        // 개발 환경에서는 더 관대하게 처리
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Development mode: proceeding despite connection check failure');
+          setServerStatus({ checking: false, connected: true });
+          setError({
+            type: 'warning',
+            title: '개발 환경: 서버 연결 확인 실패',
+            message: '서버 연결을 확인할 수 없지만 계속 진행합니다.',
+            suggestion: '백엔드 서버가 실행 중인지 확인해주세요.'
+          });
+        } else {
+          // 프로덕션에서는 연결 실패해도 페이지는 보여주되, 경고만 표시
+          setServerStatus({ checking: false, connected: false });
+          setError({
+            type: 'warning',
+            title: '서버 연결 확인 실패',
+            message: '서버와의 연결을 확인할 수 없습니다.',
+            suggestion: '로그인을 시도해보세요. 문제가 지속되면 새로고침해주세요.'
+          });
+        }
       }
     };
 
-    checkServerConnection();
+    // 약간의 지연을 두어 hydration 완료 후 실행
+    const timer = setTimeout(() => {
+      checkServerConnection();
+    }, 100);
+
+    // fallback으로 4초 후에는 무조건 체크 완료로 처리 (authService timeout 3초 + 여유시간)
+    const fallbackTimer = setTimeout(() => {
+      console.log('Server connection check timeout, proceeding anyway');
+      setServerStatus(prev => prev.checking ? { checking: false, connected: true } : prev);
+    }, 4000);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   const validateForm = () => {
@@ -94,7 +148,7 @@ const Login = () => {
         title: '서버 연결 실패',
         message: '서버와 연결할 수 없습니다.',
         suggestion: '인터넷 연결을 확인하고 잠시 후 다시 시도해주세요.',
-        Icon: WifiOff
+        Icon: NetworkIcon
       });
       return;
     }
@@ -134,7 +188,7 @@ const Login = () => {
           title: '서버 오류',
           message: '서버에서 오류가 발생했습니다.',
           suggestion: '잠시 후 다시 시도해주세요.',
-          Icon: AlertCircle
+          Icon: ErrorCircleIcon
         });
       } else {
         setError({
@@ -142,7 +196,7 @@ const Login = () => {
           title: '로그인 실패',
           message: err.message || '로그인 처리 중 오류가 발생했습니다.',
           suggestion: '입력하신 정보를 다시 확인해주세요.',
-          Icon: AlertCircle
+          Icon: ErrorCircleIcon
         });
       }
     } finally {
@@ -162,99 +216,105 @@ const Login = () => {
   if (serverStatus.checking) {
     return (
       <div className="auth-container">
-        <Card className="auth-card">
-          <Card.Body className="auth-card-body">
-            <div className="text-center">
-              <Text size="lg">서버 연결 확인 중...</Text>
+        <Card.Root className="auth-card">
+          <Card.Body className="card-body">
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+              <img src="images/logo-h.png" style={{ width: '50%' }} />
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <Text typography="body1">서버 연결 확인 중...</Text>
+              <div className="spinner-border text-primary mt-3" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
             </div>
           </Card.Body>
-        </Card>
+        </Card.Root>
       </div>
     );
   }
 
   return (
     <div className="auth-container">
-      <Card className="auth-card">
-        <Card.Body className="auth-card-body">
-          <div className="auth-header">
-            <img src="images/logo-h.png" className="w-50" />
+      <Card.Root className="auth-card">
+        <Card.Body className="card-body">
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <img src="images/logo-h.png" style={{ width: '50%' }} />
           </div>
 
           {error && (
-            <Alert variant={error.type} className="auth-alert">
-              <div className="alert-wrapper">
-                {error.Icon && <error.Icon className="w-5 h-5" />}
-                <div>
-                  <div>{error.title}</div>
-                  <div>
-                    {error.message}
-                    {error.suggestion && (
-                      <p className="alert-suggestion">{error.suggestion}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Alert>
+            <Callout color={error.type === 'error' ? 'danger' : error.type === 'warning' ? 'warning' : 'primary'}>
+              <strong>{error.title}</strong>
+              <Text typography="body2">{error.message}</Text>
+              {error.suggestion && <small>{error.suggestion}</small>}
+            </Callout>
           )}
 
-          <form onSubmit={handleSubmit} className="auth-form" noValidate>
-            <div className="form-item">
-              <Label htmlFor="email" weight="medium">
-                이메일
-              </Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="mb-3">
+              <TextInput.Root 
+                type="email" 
+                value={formData.email} 
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, email: value }));
+                  if (error?.field === 'email') setError(null);
+                }} 
+                disabled={loading} 
+                invalid={error?.field === 'email'}
                 placeholder="이메일을 입력하세요"
-                disabled={loading}
-                state={error?.field === 'email' ? 'error' : undefined}
-                autoComplete="email"
-                required
-                aria-required="true"
-              />
+              >
+                <TextInput.Label>이메일</TextInput.Label>
+                <TextInput.Field
+                  id="email"
+                  name="email"
+                  autoComplete="email"
+                  required
+                  style={{ width: '100%' }}
+                />
+              </TextInput.Root>
+              {error?.field === 'email' && (
+                <Text typography="body3" color="danger">{error.message}</Text>
+              )}
             </div>
 
-            <div className="form-item">
-              <Label htmlFor="password" weight="medium">
-                비밀번호
-              </Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleInputChange}
+            <div className="mb-3">
+              <TextInput.Root 
+                type="password" 
+                value={formData.password} 
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, password: value }));
+                  if (error?.field === 'password') setError(null);
+                }} 
+                disabled={loading} 
+                invalid={error?.field === 'password'}
                 placeholder="비밀번호를 입력하세요"
-                disabled={loading}
-                state={error?.field === 'password' ? 'error' : undefined}
-                autoComplete="current-password"
-                required
-                aria-required="true"
-              />
+              >
+                <TextInput.Label>비밀번호</TextInput.Label>
+                <TextInput.Field
+                  id="password"
+                  name="password"
+                  autoComplete="current-password"
+                  required
+                  style={{ width: '100%' }}
+                />
+              </TextInput.Root>
+              {error?.field === 'password' && (
+                <Text typography="body3" color="danger">{error.message}</Text>
+              )}
             </div>
 
             <Button
               type="submit"
-              variant="primary"
+              color="primary"
               size="lg"
+              style={{ width: '100%', marginTop: 'var(--vapor-space-200)' }}
               disabled={loading || !serverStatus.connected}
-              className="auth-submit-button"
             >
               {loading ? '로그인 중...' : '로그인'}
             </Button>
 
-            <div className="auth-footer">
-              <Text size="sm">
-                계정이 없으신가요?
-              </Text>
-              <br/><br/>
+            <div style={{ marginTop: 'var(--vapor-space-400)', textAlign: 'center' }}>
+              <Text typography="body2" style={{ display: 'block', marginBottom: 'var(--vapor-space-200)' }}>계정이 없으신가요?</Text>
               <Button
-                variant="text"
-                size="sm"
                 onClick={() => router.push('/register')}
                 disabled={loading || !serverStatus.connected}
               >
@@ -263,7 +323,7 @@ const Login = () => {
             </div>
           </form>
         </Card.Body>
-      </Card>
+      </Card.Root>
     </div>
   );
 };

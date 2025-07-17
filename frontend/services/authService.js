@@ -402,14 +402,37 @@ class AuthService {
 
   async checkServerConnection() {
     try {
+      // 클라이언트에서만 실행되도록 확인
+      if (typeof window === 'undefined') {
+        return false;
+      }
+
+      // API_URL이 없으면 연결 실패로 처리
+      if (!API_URL) {
+        console.warn('API_URL is not defined');
+        throw new Error('API URL이 설정되지 않았습니다.');
+      }
+
+      console.log('Checking server at:', API_URL);
+      
       const response = await api.get('/health', {
-        timeout: 5000,
-        retry: 2,
-        retryDelay: 1000
+        timeout: 3000, // 타임아웃을 3초로 단축
+        validateStatus: (status) => status < 500 // 5xx 에러만 실제 에러로 처리
       });
-      return response.data.status === 'ok';
+      
+      return response.data?.status === 'ok' || response.status === 200;
     } catch (error) {
       console.error('Server connection check failed:', error);
+      
+      // 네트워크 에러나 타임아웃은 더 구체적인 메시지 제공
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        throw new Error('서버 응답 시간이 초과되었습니다.');
+      }
+      
+      if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+        throw new Error('네트워크 연결을 확인해주세요.');
+      }
+      
       throw this._handleError(error);
     }
   }

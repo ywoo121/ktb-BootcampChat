@@ -360,6 +360,26 @@ export const useRoomHandling = (
         // 2. Fetch Room Data
         console.log('Fetching room data...');
         const roomData = await fetchRoomData(router.query.room);
+        
+        // Ensure current user is included in participants for display
+        if (currentUser && roomData.participants) {
+          const isUserInParticipants = roomData.participants.some(p => 
+            p._id === currentUser.id || p.id === currentUser.id
+          );
+          
+          if (!isUserInParticipants) {
+            roomData.participants = [
+              ...roomData.participants,
+              {
+                _id: currentUser.id,
+                id: currentUser.id,
+                name: currentUser.name,
+                email: currentUser.email
+              }
+            ];
+          }
+        }
+        
         setRoom(roomData);
 
         // 3. Setup Event Listeners

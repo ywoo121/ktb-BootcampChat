@@ -138,6 +138,7 @@ export const useChatRoom = () => {
         socketRef.current.off('message');
         socketRef.current.off('previousMessages');
         socketRef.current.off('previousMessagesLoaded');
+        socketRef.current.off('participantsUpdate');
         socketRef.current.off('aiMessageStart');
         socketRef.current.off('aiMessageChunk');
         socketRef.current.off('aiMessageComplete');
@@ -307,6 +308,16 @@ export const useChatRoom = () => {
     if (!socketRef.current || !mountedRef.current) return;
 
     console.log('Setting up event listeners...');
+
+    // 참가자 업데이트 이벤트
+    socketRef.current.on('participantsUpdate', (participants) => {
+      if (!mountedRef.current) return;
+      console.log('Participants updated:', participants);
+      setRoom(prev => ({
+        ...prev,
+        participants: participants || []
+      }));
+    });
 
     // 메시지 이벤트
     socketRef.current.on('message', message => {

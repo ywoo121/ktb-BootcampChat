@@ -1,16 +1,17 @@
 import React, { useCallback } from 'react';
-import { Button, ButtonGroup } from '@goorm-dev/vapor-components';
 import {
-  Bold,
-  Italic,
-  Code,
-  FileCode2,
-  List,
-  ListOrdered,
-  Quote,
-  Heading2,
-  Link2
-} from 'lucide-react';
+  BoldOutlineIcon as Bold,
+  ItalicIcon as Italic,
+  CodeBlockIcon as Code,
+  CodeBlockOutlineIcon as FileCode2,
+  BulletlistOutlineIcon as List,
+  NumberlistOutlineIcon as ListOrdered,
+  QuoteOutlineIcon as Quote,
+  HeadingOutlineIcon as Heading2,
+  LinkOutlineIcon as Link2
+} from '@vapor-ui/icons';
+import { IconButton } from '@vapor-ui/core';
+import { HStack } from '../ui/Layout';
 
 const MarkdownToolbar = ({ onAction, className = '', size = 'xs' }) => {
   // OS 확인
@@ -118,25 +119,25 @@ const MarkdownToolbar = ({ onAction, className = '', size = 'xs' }) => {
   const ToolbarButton = ({ action }) => {
     const Icon = action.icon;
     return (
-      <Button
+      <IconButton
         variant="ghost"
+        size="md"
         onClick={() => onAction(action.markdown)}
-        type="button"
-        className="toolbar-button"
+        aria-label={`${action.tooltip} (${action.shortcut})`}
         title={`${action.tooltip} (${action.shortcut})`}
       >
-        <Icon className="w-4 h-4" />
-      </Button>
+        <Icon size={20} />
+      </IconButton>
     );
   };
 
   return (
     <div className={`markdown-toolbar ${className}`}>
-      <ButtonGroup size={size}>
+      <HStack gap="050" role="group" aria-label="Markdown toolbar">
         {toolbarActions.map((action) => (
           <ToolbarButton key={action.id} action={action} />
         ))}
-      </ButtonGroup>
+      </HStack>
     </div>
   );
 };

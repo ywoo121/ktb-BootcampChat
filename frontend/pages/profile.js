@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Card } from '@goorm-dev/vapor-core';
-import { 
-  Button, 
-  Input, 
-  Text,
-  Alert,
-  Label,
-  FormGroup
-} from '@goorm-dev/vapor-components';
-import { AlertCircle } from 'lucide-react';
+import { ErrorCircleIcon } from '@vapor-ui/icons';
+import { Button, TextInput, Card, Text, Callout, Avatar } from '@vapor-ui/core';
+import { Flex, Stack, Center, Box } from '../components/ui/Layout';
 import authService from '../services/authService';
 import { withAuth } from '../middleware/withAuth';
 import ProfileImageUpload from '../components/ProfileImageUpload';
@@ -166,129 +159,154 @@ const Profile = () => {
   if (!currentUser) return null;
 
   return (
-    <div className="profile-container">
-      <Card className="profile-card">
-        <Card.Header>
-          <Text as="h5" typography="heading5">프로필 설정</Text>
-        </Card.Header>
-        
-        <Card.Body className="auth-card-body">
-          <div className="profile-header mb-4 text-center">
-            <ProfileImageUpload 
-              currentImage={profileImage}
-              onImageChange={handleImageChange}
-            />
-          </div>
+    <div className="auth-container">
+      <Card.Root className="auth-card">
+        <Card.Body className="card-body">
+          <Stack gap="400">
+            <Center>
+              <Text typography="heading3">프로필 설정</Text>
+            </Center>
+            
+            <Center>
+              <ProfileImageUpload 
+                currentImage={profileImage}
+                onImageChange={handleImageChange}
+              />
+            </Center>
 
           {error && (
-            <Alert color="danger" className="mt-4">
-              <AlertCircle className="w-4 h-4" />
-              <span>{error}</span>
-            </Alert>
+            <Box mt="400">
+              <Callout color="danger">
+                <Flex align="center" gap="200">
+                  <ErrorCircleIcon size={16} />
+                  <Text>{error}</Text>
+                </Flex>
+              </Callout>
+            </Box>
           )}
 
           {success && (
-            <Alert color="success" className="mt-4">
-              <span>{success}</span>
-            </Alert>
+            <Box mt="400">
+              <Callout color="success">
+                <Text>{success}</Text>
+              </Callout>
+            </Box>
           )}
 
-          <form onSubmit={handleSubmit} className="profile-form">
-            <FormGroup>
-              <Label htmlFor="name">
-                이메일
-              </Label>
-              <Input
-                id="email"
-                value={currentUser.email}
-                disabled
-                required
-                className="mt-1"
-              />
-            </FormGroup>
-            
-            <FormGroup>              
-              <Label htmlFor="name">
-                이름
-              </Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="이름을 입력하세요"
-                disabled={loading}
-                required
-                className="mt-1"
-              />
-            </FormGroup>
-            
-            <FormGroup>   
-              <Label htmlFor="currentPassword">
-                현재 비밀번호
-              </Label>
-              <Input
-                id="currentPassword"
-                type="password"
-                value={formData.currentPassword}
-                onChange={(e) => setFormData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                placeholder="현재 비밀번호를 입력하세요"
-                disabled={loading}
-                className="mt-1"
-              />
-            </FormGroup>
-            
-            <FormGroup>   
-              <Label htmlFor="newPassword">
-                새 비밀번호
-              </Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={formData.newPassword}
-                onChange={(e) => setFormData(prev => ({ ...prev, newPassword: e.target.value }))}
-                placeholder="새 비밀번호를 입력하세요"
-                disabled={loading}
-                className="mt-1"
-              />
-            </FormGroup>
-            
-            <FormGroup>   
-              <Label htmlFor="confirmPassword">
-                새 비밀번호 확인
-              </Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                placeholder="새 비밀번호를 다시 입력하세요"
-                disabled={loading}
-                className="mt-1"
-              />
-            </FormGroup>
+          <Box mt="400">
+            <form onSubmit={handleSubmit}>
+              <Stack gap="300">
+                <Box>
+                  <TextInput.Root
+                    type="email"
+                    value={currentUser.email}
+                    disabled
+                  >
+                    <TextInput.Label>이메일</TextInput.Label>
+                    <TextInput.Field
+                      id="email"
+                      name="email"
+                      required
+                      style={{ width: '100%' }}
+                    />
+                  </TextInput.Root>
+                </Box>
+                
+                <Box>
+                  <TextInput.Root
+                    type="text"
+                    value={formData.name}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, name: value }))}
+                    disabled={loading}
+                  >
+                    <TextInput.Label>이름</TextInput.Label>
+                    <TextInput.Field
+                      id="name"
+                      name="name"
+                      placeholder="이름을 입력하세요"
+                      required
+                      style={{ width: '100%' }}
+                    />
+                  </TextInput.Root>
+                </Box>
+                
+                <Box>
+                  <TextInput.Root
+                    type="password"
+                    value={formData.currentPassword}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, currentPassword: value }))}
+                    disabled={loading}
+                  >
+                    <TextInput.Label>현재 비밀번호</TextInput.Label>
+                    <TextInput.Field
+                      id="currentPassword"
+                      name="currentPassword"
+                      placeholder="현재 비밀번호를 입력하세요"
+                      style={{ width: '100%' }}
+                    />
+                  </TextInput.Root>
+                </Box>
+                
+                <Box>
+                  <TextInput.Root
+                    type="password"
+                    value={formData.newPassword}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, newPassword: value }))}
+                    disabled={loading}
+                  >
+                    <TextInput.Label>새 비밀번호</TextInput.Label>
+                    <TextInput.Field
+                      id="newPassword"
+                      name="newPassword"
+                      placeholder="새 비밀번호를 입력하세요"
+                      style={{ width: '100%' }}
+                    />
+                  </TextInput.Root>
+                </Box>
+                
+                <Box>
+                  <TextInput.Root
+                    type="password"
+                    value={formData.confirmPassword}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, confirmPassword: value }))}
+                    disabled={loading}
+                  >
+                    <TextInput.Label>새 비밀번호 확인</TextInput.Label>
+                    <TextInput.Field
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      placeholder="새 비밀번호를 다시 입력하세요"
+                      style={{ width: '100%' }}
+                    />
+                  </TextInput.Root>
+                </Box>
 
-            <div className="profile-actions mt-4 text-center">
-              <Button
-                type="submit"
-                variant="primary"
-                className="w-full"
-                loading={loading}
-              >
-                {loading ? '저장 중...' : '저장'}
-              </Button>
-              &nbsp;&nbsp;
-              <Button
-                variant="text"
-                className="w-full"
-                onClick={() => router.back()}
-                disabled={loading}
-              >
-                취소
-              </Button>
-            </div>
-          </form>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--vapor-space-300)', marginTop: 'var(--vapor-space-300)', width: '100%' }}>
+                  <Button
+                    type="submit"
+                    color="primary"
+                    size="md"
+                    disabled={loading}
+                  >
+                    {loading ? '저장 중...' : '저장'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    color="secondary"
+                    size="md"
+                    onClick={() => router.back()}
+                    disabled={loading}
+                  >
+                    취소
+                  </Button>
+                </div>
+              </Stack>
+            </form>
+          </Box>
+          </Stack>
         </Card.Body>
-      </Card>
+      </Card.Root>
     </div>
   );
 };

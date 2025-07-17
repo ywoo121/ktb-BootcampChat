@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
-import { Text, Tooltip } from '@goorm-dev/vapor-components';
-import { CheckCheck, Check } from 'lucide-react';
+import { ConfirmOutlineIcon } from '@vapor-ui/icons';
+import { Text } from '@vapor-ui/core';
 
 const ReadStatus = ({ 
   messageType = 'text',
@@ -179,20 +179,13 @@ const ReadStatus = ({
         role="status"
         aria-label="모든 참여자가 메시지를 읽었습니다"
       >
-        <CheckCheck size={12} className="text-green-400 mr-1" />
-        <Text typography="body3" color="green-400">
-          모두 읽음
-        </Text>
-        <Tooltip
-          id="read-status-tooltip"
-          target={statusRef}
-          placement="top"
-          hideArrow={false}
-          isOpen={tooltipOpen}
-          toggle={toggle}
-        >
-          모두 읽음
-        </Tooltip>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <ConfirmOutlineIcon size={12} style={{ color: 'var(--vapor-color-success)' }} />
+            <ConfirmOutlineIcon size={12} style={{ color: 'var(--vapor-color-success)', marginLeft: '-6px' }} />
+          </div>
+          <Text typography="caption" style={{ fontSize: '0.65rem', color: 'var(--vapor-color-text-muted)' }}>모두 읽음</Text>
+        </div>
       </div>
     );
   }
@@ -205,24 +198,14 @@ const ReadStatus = ({
       role="status"
       aria-label={`${unreadCount}명이 메시지를 읽지 않았습니다`}
     >
-      <div className="flex items-center gap-1">
-        <Check size={12} className="text-gray-700 mr-1" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <ConfirmOutlineIcon size={12} style={{ color: 'var(--vapor-color-gray-400)' }} />
         {unreadCount > 0 && (
-          <Text typography="body3" color="gray-700">
-            {unreadCount}
+          <Text typography="caption" style={{ fontSize: '0.65rem', color: 'var(--vapor-color-text-muted)' }}>
+            {unreadCount}명 안 읽음
           </Text>
         )}
       </div>
-      <Tooltip
-        id="read-status-tooltip"
-        target={statusRef}
-        placement="top"
-        hideArrow={false}
-        isOpen={tooltipOpen}
-        toggle={toggle}
-      >
-        {getTooltipText()}
-      </Tooltip>
     </div>
   );
 };

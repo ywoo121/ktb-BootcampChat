@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '@goorm-dev/vapor-core';
 import { 
-  FileText, 
-  Image, 
-  Film, 
-  CheckCheck, 
-  Check, 
-  Music, 
-  ExternalLink, 
-  Download,
-  AlertCircle 
-} from 'lucide-react';
-import { Text, Alert } from '@goorm-dev/vapor-components';
+  PdfIcon as FileText, 
+  ImageIcon as Image, 
+  MovieIcon as Film, 
+  CorrectOutlineIcon as CheckCheck, 
+  CorrectOutlineIcon as Check, 
+  MusicIcon as Music, 
+  ExternalLinkIcon as ExternalLink, 
+  DownloadIcon as Download,
+  ErrorCircleIcon as AlertCircle 
+} from '@vapor-ui/icons';
+import { Button, Text, Callout } from '@vapor-ui/core';
 import PersistentAvatar from '../../common/PersistentAvatar';
 import MessageContent from './MessageContent';
 import MessageActions from './MessageActions';
@@ -93,7 +92,7 @@ const FileMessage = ({
   const renderAvatar = () => (
     <PersistentAvatar 
       user={isMine ? currentUser : msg.sender}
-      size="lg"
+      size="md"
       className="flex-shrink-0"
       showInitials={true}
     />
@@ -217,16 +216,18 @@ const FileMessage = ({
     const FileActions = () => (
       <div className="file-actions mt-2 pt-2 border-t border-gray-200">
         <Button
+          size="sm"
+          variant="outline"
           onClick={handleViewInNewTab}
-          className="file-action-button hover:bg-gray-100"
           title="새 탭에서 보기"
         >
           <ExternalLink size={16} />
           <span>새 탭에서 보기</span>
         </Button>
         <Button
+          size="sm"
+          variant="outline"
           onClick={handleFileDownload}
-          className="file-action-button hover:bg-gray-100"
           title="다운로드"
         >
           <Download size={16} />
@@ -246,8 +247,8 @@ const FileMessage = ({
           {renderImagePreview(originalname)}
           <div className={fileInfoClass}>
             <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{getFileIcon()} {originalname}</div>
-              <Text typography="body2" as="span">{size}</Text>
+              <Text typography="body2" className="font-medium truncate">{getFileIcon()} {originalname}</Text>
+              <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
           <FileActions />
@@ -279,8 +280,8 @@ const FileMessage = ({
           </div>
           <div className={fileInfoClass}>
             <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{getFileIcon()} {originalname}</div>
-              <Text typography="body2" as="span">{size}</Text>
+              <Text typography="body2" className="font-medium truncate">{getFileIcon()} {originalname}</Text>
+              <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
           <FileActions />
@@ -293,8 +294,8 @@ const FileMessage = ({
         <div className={previewWrapperClass}>
           <div className={fileInfoClass}>
             <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{getFileIcon()} {originalname}</div>
-              <Text typography="body2" as="span">{size}</Text>
+              <Text typography="body2" className="font-medium truncate">{getFileIcon()} {originalname}</Text>
+              <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
           <div className="px-3 pb-3">
@@ -341,14 +342,19 @@ const FileMessage = ({
         <div className={`message-bubble ${isMine ? 'message-mine' : 'message-other'} last file-message`}>
           <div className="message-content">
             {error && (
-              <Alert 
-                color="danger" 
-                className="mb-3"
-                onClose={() => setError(null)}
-              >
-                <AlertCircle className="w-4 h-4" />
+              <Callout color="danger" className="mb-3 d-flex align-items-center">
+                <AlertCircle className="w-4 h-4 me-2" />
                 <span>{error}</span>
-              </Alert>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ms-auto"
+                  aria-label="Close"
+                  onClick={() => setError(null)}
+                >
+                  ×
+                </Button>
+              </Callout>
             )}
             {renderFilePreview()}
             {msg.content && (

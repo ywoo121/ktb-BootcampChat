@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@goorm-dev/vapor-core';
-import { Alert } from '@goorm-dev/vapor-components';
-import { Camera, X } from 'lucide-react';
+import { CameraIcon, CloseOutlineIcon } from '@vapor-ui/icons';
+import { Button, Text, Callout, IconButton } from '@vapor-ui/core';
 import authService from '../services/authService';
 import PersistentAvatar from './common/PersistentAvatar';
 
@@ -171,31 +170,31 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
         <PersistentAvatar
           user={currentUser}
           size="xl"
-          className="w-24 h-24 mx-auto mb-6"
+          className="mx-auto mb-2"
           showInitials={true}
         />
         
-        <div className="mt-6">
+        <div className="mt-2">
           <Button
-            size="md"
-            color="secondary"
-            className="rounded-full p-2 mt-3"
+            variant="outline"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
+            size="sm"
           >
-            <Camera className="w-4 h-4" />
+            <CameraIcon size={16} />
+            <span style={{ marginLeft: '8px' }}>이미지 변경</span>
           </Button>
 
           {previewUrl && (
-            <Button
-              size="md"
+            <IconButton
+              variant="outline"
               color="danger"
-              className="rounded-full p-2 mt-3 ml-2"
               onClick={handleRemoveImage}
               disabled={uploading}
+              style={{ marginLeft: '8px' }}
             >
-              <X className="w-4 h-4" />
-            </Button>
+              <CloseOutlineIcon size={16} />
+            </IconButton>
           )}
         </div>
       </div>
@@ -210,16 +209,16 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
 
       {error && (
         <div className="w-full max-w-sm mx-auto">
-          <Alert variant="danger" className="mt-2">
+          <Callout color="danger" className="mt-2">
             {error}
-          </Alert>
+          </Callout>
         </div>
       )}
 
       {uploading && (
-        <div className="text-sm text-gray-500 text-center mt-2">
+        <Text typography="body3" color="neutral-weak" className="text-center mt-2">
           이미지 업로드 중...
-        </div>
+        </Text>
       )}
     </div>
   );

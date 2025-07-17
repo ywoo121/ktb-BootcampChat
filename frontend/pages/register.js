@@ -1,20 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
-import { Card } from '@goorm-dev/vapor-core';
-import { 
-  Button, 
-  Input, 
-  Text,
-  Alert,
-  FormGroup,
-  Label,
-  Modal,
-  ModalHeader,
-  ModalBody,
-  ModalFooter
-} from '@goorm-dev/vapor-components';
-import { AlertCircle, PartyPopper } from 'lucide-react';
+import { ErrorCircleIcon, StarIcon } from '@vapor-ui/icons';
 import ReactCanvasConfetti from 'react-canvas-confetti';
+import { Button, Card, Text, Callout, TextInput } from '@vapor-ui/core';
+import { Flex, Stack, Center, Box } from '../components/ui/Layout';
 import authService from '../services/authService';
 
 const canvasStyles = {
@@ -48,50 +37,53 @@ const Register = () => {
     refAnimationInstance.current?.({
       ...opts,
       origin: { y: 0.7 },
-      particleCount: Math.floor(200 * particleRatio)
+      particleCount: Math.floor(200 * particleRatio),
     });
   }, []);
 
   const fireConfetti = useCallback(() => {
     makeShot(0.25, {
       spread: 26,
-      startVelocity: 55
+      startVelocity: 55,
     });
 
     makeShot(0.2, {
-      spread: 60
+      spread: 60,
     });
 
     makeShot(0.35, {
       spread: 100,
       decay: 0.91,
-      scalar: 0.8
+      scalar: 0.8,
     });
 
     makeShot(0.1, {
       spread: 120,
       startVelocity: 25,
       decay: 0.92,
-      scalar: 1.2
+      scalar: 1.2,
     });
 
     makeShot(0.1, {
       spread: 120,
-      startVelocity: 45
+      startVelocity: 45,
     });
   }, [makeShot]);
 
   const validateForm = () => {
     const newErrors = [];
     
-    if (!formData.name.trim()) {
+    if (!formData.name?.trim()) {
       newErrors.push({ field: 'name', message: '이름을 입력해주세요.' });
     }
     
-    if (!formData.email.trim()) {
+    if (!formData.email?.trim()) {
       newErrors.push({ field: 'email', message: '이메일을 입력해주세요.' });
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.push({ field: 'email', message: '올바른 이메일 형식이 아닙니다.' });
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email.trim())) {
+        newErrors.push({ field: 'email', message: '올바른 이메일 형식이 아닙니다.' });
+      }
     }
     
     if (!formData.password) {
@@ -100,10 +92,12 @@ const Register = () => {
       newErrors.push({ field: 'password', message: '비밀번호는 6자 이상이어야 합니다.' });
     }
     
-    if (formData.password !== formData.confirmPassword) {
+    if (!formData.confirmPassword) {
+      newErrors.push({ field: 'confirmPassword', message: '비밀번호 확인을 입력해주세요.' });
+    } else if (formData.password !== formData.confirmPassword) {
       newErrors.push({ field: 'confirmPassword', message: '비밀번호가 일치하지 않습니다.' });
     }
-
+    
     setErrors(newErrors);
     return newErrors.length === 0;
   };
@@ -158,171 +152,162 @@ const Register = () => {
     <div className="auth-container">
       <ReactCanvasConfetti refConfetti={getInstance} style={canvasStyles} />
       
-      <Card className="auth-card">
-        <Card.Body className="auth-card-body">
-          <div className="auth-header">
-            <img src="images/logo.png" className="w-50" alt="Logo" />
-            <Text as="h3" typography="heading3">
-              회원가입
-            </Text>
-          </div>
+      <Card.Root className="auth-card">
+        <Card.Body className="card-body">
+          <Stack gap="300" align="center">
+            <img src="images/logo.png" style={{ width: '50%' }} alt="Logo" />
+            <Text typography="heading3">회원가입</Text>
+          </Stack>
 
           {errors.length > 0 && (
-            <Alert color="danger" className="mt-4">
-              <div className="flex items-center gap-2 flex-row">
-                <AlertCircle size="18" className="mr-2" />
-                {errors.map((error, index) => (
-                  <Text key={index} size="sm">
-                    {error.message}
-                  </Text>
-                ))}
-              </div>
-            </Alert>
+            <Box mt="400">
+              <Callout color="danger">
+                <Flex align="center" gap="200">
+                  <ErrorCircleIcon size={18} />
+                  <Stack gap="100">
+                    {errors.map((error, index) => (
+                      <Text key={index} typography="body3">
+                        {error.message}
+                      </Text>
+                    ))}
+                  </Stack>
+                </Flex>
+              </Callout>
+            </Box>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <FormGroup>
-              <Label htmlFor="name" required>이름</Label>
-              <Input
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  name: e.target.value
-                }))}
-                placeholder="이름을 입력하세요"
-                disabled={loading}
-                state={getFieldError('name') ? 'error' : undefined}
-                required
-              />
-            </FormGroup>
+          <Box mt="400">
+            <form onSubmit={handleSubmit}>
+              <Stack gap="300">
+                <TextInput.Root type="text" value={formData.name} onValueChange={(value) => setFormData(prev => ({ ...prev, name: value }))} disabled={loading} invalid={!!getFieldError('name')} placeholder="이름을 입력하세요">
+                  <TextInput.Label>이름 <span style={{ color: 'var(--vapor-color-danger)' }}>*</span></TextInput.Label>
+                  <TextInput.Field
+                    id="name"
+                    name="name"
+                    placeholder="이름을 입력하세요"
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </TextInput.Root>
+                {getFieldError('name') && (
+                  <Text typography="body3" color="danger">{getFieldError('name')}</Text>
+                )}
 
-            <FormGroup>
-              <Label htmlFor="email" required>이메일</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  email: e.target.value
-                }))}
-                placeholder="이메일을 입력하세요"
-                disabled={loading}
-                state={getFieldError('email') ? 'error' : undefined}
-                required
-              />
-            </FormGroup>
+                <TextInput.Root type="email" value={formData.email} onValueChange={(value) => setFormData(prev => ({ ...prev, email: value }))} disabled={loading} invalid={!!getFieldError('email')} placeholder="이메일을 입력하세요">
+                  <TextInput.Label>이메일 <span style={{ color: 'var(--vapor-color-danger)' }}>*</span></TextInput.Label>
+                  <TextInput.Field
+                    id="email"
+                    name="email"
+                    placeholder="이메일을 입력하세요"
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </TextInput.Root>
+                {getFieldError('email') && (
+                  <Text typography="body3" color="danger">{getFieldError('email')}</Text>
+                )}
 
-            <FormGroup>
-              <Label htmlFor="password" required>비밀번호</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  password: e.target.value
-                }))}
-                placeholder="비밀번호를 입력하세요"
-                disabled={loading}
-                state={getFieldError('password') ? 'error' : undefined}
-                required
-              />
-            </FormGroup>
+                <TextInput.Root type="password" value={formData.password} onValueChange={(value) => setFormData(prev => ({ ...prev, password: value }))} disabled={loading} invalid={!!getFieldError('password')} placeholder="비밀번호를 입력하세요">
+                  <TextInput.Label>비밀번호 <span style={{ color: 'var(--vapor-color-danger)' }}>*</span></TextInput.Label>
+                  <TextInput.Field
+                    id="password"
+                    name="password"
+                    placeholder="비밀번호를 입력하세요"
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </TextInput.Root>
+                {getFieldError('password') && (
+                  <Text typography="body3" color="danger">{getFieldError('password')}</Text>
+                )}
 
-            <FormGroup>
-              <Label htmlFor="confirmPassword" required>비밀번호 확인</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  confirmPassword: e.target.value
-                }))}
-                placeholder="비밀번호를 다시 입력하세요"
-                disabled={loading}
-                state={getFieldError('confirmPassword') ? 'error' : undefined}
-                required
-              />
-            </FormGroup>
+                <TextInput.Root type="password" value={formData.confirmPassword} onValueChange={(value) => setFormData(prev => ({ ...prev, confirmPassword: value }))} disabled={loading} invalid={!!getFieldError('confirmPassword')} placeholder="비밀번호를 다시 입력하세요">
+                  <TextInput.Label>비밀번호 확인 <span style={{ color: 'var(--vapor-color-danger)' }}>*</span></TextInput.Label>
+                  <TextInput.Field
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="비밀번호를 다시 입력하세요"
+                    required
+                    style={{ width: '100%' }}
+                  />
+                </TextInput.Root>
+                {getFieldError('confirmPassword') && (
+                  <Text typography="body3" color="danger">{getFieldError('confirmPassword')}</Text>
+                )}
 
-            <div className="mt-4 text-center">
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                className="auth-submit-button"
-                loading={loading}
-                disabled={loading}
-              >
-                {loading ? '회원가입 중...' : '회원가입'}
-              </Button>
-            </div>
+              </Stack>
+              
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
+                <Button
+                  type="submit"
+                  size="lg"
+                  color="primary"
+                  disabled={loading}
+                  style={{ minWidth: '200px' }}
+                >
+                  {loading ? '회원가입 중...' : '회원가입'}
+                </Button>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '2rem' }}>
+                <Stack gap="100" align="center">
+                  <Text typography="body3">이미 계정이 있으신가요?</Text>
+                  <Button
+                    size="md"
+                    onClick={() => router.push('/')}
+                    disabled={loading}
+                  >
+                    로그인
+                  </Button>
+                </Stack>
+              </div>
 
-            <div className="mt-4 text-center">
-              <Text size="sm">
-                이미 계정이 있으신가요?{' '}
-              </Text>
-            </div>
-            <div className="mt-2 text-center">
-              <Button
-                size="sm"
-                variant="text"
-                onClick={() => router.push('/')}
-                disabled={loading}
-              >
-                로그인
-              </Button>
-            </div>
-          </form>
+            </form>
+          </Box>
         </Card.Body>
-      </Card>
+      </Card.Root>
 
-      <Modal
-        isOpen={showSuccessModal}
-        toggle={() => setShowSuccessModal(false)}
-        type="center"
-        size="md"
-        direction="vertical"
-      >
-        <ModalHeader toggle={() => setShowSuccessModal(false)}>
-          <div className="flex items-center gap-3">
-            <PartyPopper className="w-6 h-6 text-primary mr-3" />
-            <Text as="span" typography="heading4">
-              회원가입 성공
-            </Text>
+      {/* Success Modal - Bootstrap Modal */}
+      {showSuccessModal && (
+        <>
+          <div className="modal fade show d-block" tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <StarIcon size={24} className="me-2" />
+                    회원가입 성공
+                  </h5>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSuccessModal(false)}
+                    aria-label="Close"
+                  >
+                    ×
+                  </Button>
+                </div>
+                
+                <div className="modal-body text-center py-4">
+                  <h4 className="text-success mb-3">회원가입을 축하합니다!</h4>
+                  <Text typography="body2" color="neutral-weak">10초 후 채팅방 목록으로 이동합니다.</Text>
+                </div>
+                
+                <div className="modal-footer">
+                  <Button
+                    color="primary"
+                    style={{ width: '100%' }}
+                    onClick={() => router.push('/chat-rooms')}
+                  >
+                    지금 이동하기
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
-        </ModalHeader>
-        
-        <ModalBody className="text-center py-6">
-          <div className="flex flex-col items-center gap-4">
-            <Text as="h4" typography="heading4" className="text-success">
-              회원가입을 축하합니다!
-            </Text>
-            <br/>
-            <Text size="md">
-              10초 후 채팅방 목록으로 이동합니다.
-            </Text>
-          </div>
-        </ModalBody>
-
-        <ModalFooter>
-          <Button 
-            variant="primary" 
-            size="lg" 
-            onClick={() => router.push('/chat-rooms')}
-            className="w-full"
-          >
-            채팅방 목록으로 이동
-          </Button>
-        </ModalFooter>
-      </Modal>
+          <div className="modal-backdrop fade show"></div>
+        </>
+      )}
     </div>
   );
 };

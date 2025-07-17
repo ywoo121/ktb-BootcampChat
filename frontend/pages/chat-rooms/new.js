@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { Card } from '@goorm-dev/vapor-core';
-import { 
-  Button, 
-  Input, 
-  Text,
-  Alert,
-  Switch,
-  FormGroup,
-  Label
-} from '@goorm-dev/vapor-components';
-import { AlertCircle } from 'lucide-react';
+import { ErrorCircleIcon } from '@vapor-ui/icons';
+import { Button, TextInput, Callout, Card, Text, Switch } from '@vapor-ui/core';
+import { Stack, Box, Flex } from '../../components/ui/Layout';
 import authService from '../../services/authService';
 
 function NewChatRoom() {
@@ -129,92 +121,88 @@ function NewChatRoom() {
     }
   };
 
-  const handleSwitchChange = (e) => {
-    const checked = e.target.checked;
-    setFormData(prev => ({
-      ...prev,
-      hasPassword: checked,
-      password: checked ? prev.password : ''
-    }));
-  };
 
   return (
     <div className="auth-container">
-      <Card className="auth-card">
+      <Card.Root className="auth-card">
         <Card.Header>
-          <Text as="h5" typography="heading5">새 채팅방</Text>
+          <Text typography="heading4">새 채팅방</Text>
         </Card.Header>
-        <Card.Body className="p-8">
+        <Card.Body className="card-body">
 
           {error && (
-            <Alert
-              color="danger"
-              className="mb-6"
-            >
-              <AlertCircle className="w-4 h-4 mr-2" />
-              {error}
-            </Alert>
+            <Box style={{ marginBottom: 'var(--vapor-space-400)' }}>
+              <Callout color="danger">
+                <Flex align="center" gap="200">
+                  <ErrorCircleIcon size={16} />
+                  <Text>{error}</Text>
+                </Flex>
+              </Callout>
+            </Box>
           )}
 
-          <form onSubmit={handleSubmit} className="auth-form">
-            <FormGroup>
-              <Label for="roomName">채팅방 이름</Label>
-              <Input
-                id="roomName"
-                name="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  name: e.target.value
-                }))}
+          <form onSubmit={handleSubmit}>
+            <Stack gap="300">
+              <TextInput.Root 
+                type="text" 
+                value={formData.name} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, name: value }))} 
+                disabled={loading} 
                 placeholder="채팅방 이름을 입력하세요"
+              >
+                <TextInput.Label>채팅방 이름</TextInput.Label>
+                <TextInput.Field
+                  id="roomName"
+                  name="name"
+                  placeholder="채팅방 이름을 입력하세요"
+                  style={{ width: '100%' }}
+                />
+              </TextInput.Root>
+
+              <Switch.Root
+                checked={formData.hasPassword}
+                onCheckedChange={(checked) => setFormData(prev => ({
+                  ...prev,
+                  hasPassword: checked,
+                  password: checked ? prev.password : ''
+                }))}
                 disabled={loading}
-              />
-            </FormGroup>
+              >
+                <Switch.Label>비밀번호 설정</Switch.Label>
+                <Switch.Control />
+              </Switch.Root>
 
-            <FormGroup>
-              <div className="d-flex justify-content-between align-items-center">
-                <Label for="hasPassword" inline>
-                  비밀번호 설정
-                </Label>
-                <Switch
-                  id="hasPassword"
-                  checked={formData.hasPassword}
-                  onChange={handleSwitchChange}
-                  disabled={loading}
-                />
-              </div>
-            </FormGroup>
-
-            {formData.hasPassword && (
-              <FormGroup>
-                <Label for="roomPassword">비밀번호</Label>
-                <Input
-                  id="roomPassword"
-                  name="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData(prev => ({
-                    ...prev,
-                    password: e.target.value
-                  }))}
+              {formData.hasPassword && (
+                <TextInput.Root 
+                  type="password" 
+                  value={formData.password} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, password: value }))} 
+                  disabled={loading} 
                   placeholder="비밀번호를 입력하세요"
-                  disabled={loading}
-                />
-              </FormGroup>
-            )}
+                >
+                  <TextInput.Label>비밀번호</TextInput.Label>
+                  <TextInput.Field
+                    id="roomPassword"
+                    name="password"
+                    placeholder="비밀번호를 입력하세요"
+                    style={{ width: '100%' }}
+                  />
+                </TextInput.Root>
+              )}
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              disabled={loading || !formData.name.trim() || (formData.hasPassword && !formData.password)}
-            >
-              {loading ? '생성 중...' : '채팅방 만들기'}
-            </Button>
+              <Button
+                type="submit"
+                color="primary"
+                size="lg"
+                stretch
+                disabled={loading || !formData.name.trim() || (formData.hasPassword && !formData.password)}
+              >
+                {loading ? '생성 중...' : '채팅방 만들기'}
+              </Button>
+            </Stack>
           </form>
         </Card.Body>
-      </Card>
+      </Card.Root>
     </div>
   );
 }

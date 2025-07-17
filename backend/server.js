@@ -19,8 +19,13 @@ app.set('trust proxy', 1);
 const corsOptions = {
   origin: [
     'https://bootcampchat-fe.run.goorm.site',
+    'https://bootcampchat-hgxbv.dev-k8s.arkain.io',
     'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
     'https://localhost:3000',
+    'https://localhost:3001',
+    'https://localhost:3002',
     'http://0.0.0.0:3000',
     'https://0.0.0.0:3000'
   ],

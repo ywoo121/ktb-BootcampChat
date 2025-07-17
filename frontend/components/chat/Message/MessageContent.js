@@ -5,7 +5,8 @@ import remarkBreaks from 'remark-breaks';
 import remarkEmoji from 'remark-emoji';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/cjs/styles/prism';
-import { Copy, Check } from 'lucide-react';
+import { CopyIcon, CorrectOutlineIcon } from '@vapor-ui/icons';
+import { Text } from '@vapor-ui/core';
 import { Toast } from '../../Toast';
 
 const MessageContent = ({ content, isAI = false }) => {
@@ -89,9 +90,9 @@ const MessageContent = ({ content, isAI = false }) => {
         typeof children[0] === 'string' && 
         !children[0].includes('\n')
       ) {
-        return <p>{renderContentWithMentions(children[0])}</p>;
+        return <Text typography="body2">{renderContentWithMentions(children[0])}</Text>;
       }
-      return <p>{children}</p>;
+      return <Text typography="body2">{children}</Text>;
     },
     code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
@@ -105,9 +106,9 @@ const MessageContent = ({ content, isAI = false }) => {
             title="코드 복사"
           >
             {copyingMap.get(blockId) ? (
-              <Check className="w-4 h-4 text-green-400" />
+              <CorrectOutlineIcon size={16} style={{ color: 'var(--vapor-color-success)' }} />
             ) : (
-              <Copy className="w-4 h-4 text-gray-300" />
+              <CopyIcon size={16} style={{ color: 'var(--vapor-color-gray-500)' }} />
             )}
           </button>
           <SyntaxHighlighter
@@ -237,7 +238,7 @@ const MessageContent = ({ content, isAI = false }) => {
 
   // 순수 텍스트이면서 멘션이 포함된 경우 직접 렌더링
   if (isPlainText && content.includes('@')) {
-    return <div className="message-text">{renderContentWithMentions(content)}</div>;
+    return <Text typography="body2" className="message-text">{renderContentWithMentions(content)}</Text>;
   }
 
   // 마크다운 콘텐츠의 경우 ReactMarkdown 사용

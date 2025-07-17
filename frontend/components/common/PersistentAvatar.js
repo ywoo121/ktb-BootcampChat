@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, forwardRef } from 'react';
-import { Avatar } from '@goorm-dev/vapor-core';
+import { Avatar } from '@vapor-ui/core';
 import { getConsistentAvatarStyles } from '../../utils/colorUtils';
 
 const PersistentAvatar = forwardRef(({
@@ -57,30 +57,9 @@ const PersistentAvatar = forwardRef(({
   // 이메일 기반의 일관된 스타일 가져오기
   const avatarStyles = getConsistentAvatarStyles(user?.email);
 
-  const combinedStyles = {
-    ...avatarStyles,
-    position: 'relative',
-    overflow: 'hidden'
-  };
-
-  const imageOverlayStyle = {
-    backgroundColor: avatarStyles.backgroundColor,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    borderRadius: 'inherit'
-  };
-
   const handleImageError = (e) => {
     e.preventDefault();
-    e.target.style.display = 'none';
     setImageError(true);
-
-    // 이미지 로드 실패 시 이니셜 표시
-    if (e.target.parentElement && showInitials) {
-      e.target.parentElement.textContent = user?.name?.[0]?.toUpperCase() || '';
-      Object.assign(e.target.parentElement.style, avatarStyles);
-    }
 
     // 콘솔에 디버그 정보 출력
     console.debug('Avatar image load failed:', {
@@ -90,37 +69,47 @@ const PersistentAvatar = forwardRef(({
     });
   };
 
+  // Vapor UI size mapping
+  const getVaporSize = (size) => {
+    switch (size) {
+      case 'sm': return 'sm';
+      case 'lg': return 'lg';
+      case 'xl': return 'xl';
+      default: return 'md';
+    }
+  };
+
   return (
-    <Avatar
+    <Avatar.Root
       ref={ref}
-      size={size}
-      className={`persistent-avatar ${className}`}
+      size={getVaporSize(size)}
+      className={className}
       onClick={onClick}
-      style={combinedStyles}
+      src={currentImage && !imageError ? currentImage : undefined}
+      style={{
+        backgroundColor: avatarStyles.backgroundColor,
+        color: avatarStyles.color,
+        cursor: onClick ? 'pointer' : 'default',
+        ...props.style
+      }}
       {...props}
     >
       {currentImage && !imageError ? (
         <Avatar.Image
-          src={currentImage}
-          alt={`${user?.name}'s profile`}
-          style={imageOverlayStyle}
           onError={handleImageError}
-          loading="lazy"
+          alt={`${user?.name}'s profile`}
         />
-      ) : showInitials ? (
-        <span 
-          style={{ 
-            position: 'relative', 
-            zIndex: 1,
-            fontSize: size === 'sm' ? '0.875rem' : size === 'lg' ? '1.25rem' : '1rem',
-            fontWeight: '500'
-          }}
-          title={user?.name}
-        >
-          {user?.name?.[0]?.toUpperCase()}
-        </span>
       ) : null}
-    </Avatar>
+      <Avatar.Fallback
+        style={{
+          backgroundColor: avatarStyles.backgroundColor,
+          color: avatarStyles.color,
+          fontWeight: '500'
+        }}
+      >
+        {showInitials ? (user?.name?.[0]?.toUpperCase() || '?') : ''}
+      </Avatar.Fallback>
+    </Avatar.Root>
   );
 });
 

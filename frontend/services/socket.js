@@ -1,6 +1,5 @@
 import { io } from 'socket.io-client';
-import { Modal, Alert, Button } from '@goorm-dev/vapor-components';
-import { AlertCircle, Timer, ExternalLink, AlertTriangle } from 'lucide-react';
+// Icons imported but not used in this file
 import { Toast } from '../components/Toast';
 import authService from './authService';
 

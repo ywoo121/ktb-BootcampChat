@@ -1,5 +1,5 @@
 import React, { useCallback, memo, useRef, useEffect } from 'react';
-import { Avatar } from '@goorm-dev/vapor-core';
+import { Avatar } from '@vapor-ui/core';
 import { getAIAvatarStyles, generateColorFromEmail, getContrastTextColor } from '../../utils/colorUtils';
 
 const MentionDropdown = ({ 
@@ -111,14 +111,18 @@ const MentionDropdown = ({
           onMouseEnter={() => onMouseEnter(index)}
         >
           <div className="mention-item-content">
-            <Avatar 
-              size="lg"
-              style={getAvatarStyles(user)}
-              className="mention-avatar"
+            <Avatar.Root
+              size="sm"
+              style={{
+                ...getAvatarStyles(user),
+                flexShrink: 0
+              }}
               aria-label={`${user.name}의 아바타`}
             >
-              {getAvatarContent(user)}
-            </Avatar>
+              <Avatar.Fallback style={getAvatarStyles(user)}>
+                {getAvatarContent(user)}
+              </Avatar.Fallback>
+            </Avatar.Root>
             
             <div className="mention-info">
               <span className="mention-name">

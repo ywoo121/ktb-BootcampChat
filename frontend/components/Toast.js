@@ -1,13 +1,13 @@
 import React from 'react';
-import { ToastContainer, toast, Slide } from '@goorm-dev/vapor-components';
+import { ToastContainer, toast, Slide } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.min.css';
 import { 
-  AlertCircle, 
-  CheckCircle2, 
-  Info, 
-  AlertTriangle,
-  XCircle 
-} from 'lucide-react';
+  ErrorCircleIcon, 
+  SuccessCircleIcon, 
+  InfoIcon, 
+  WarningIcon,
+  ErrorCircleIcon as XCircleIcon 
+} from '@vapor-ui/icons';
 
 // Toast 타입별 설정
 const TOAST_TYPES = {
@@ -39,7 +39,7 @@ class Toast {
         <span>{message}</span>
       </div>,
       {
-        position: toast.POSITION.TOP_RIGHT,
+        position: "top-right",
         autoClose: options.duration || config.duration,
         hideProgressBar: true,
         closeOnClick: true,
@@ -83,7 +83,7 @@ class Toast {
 const ToastContainer$ = () => {
   return (
     <ToastContainer
-      position={toast.POSITION.TOP_RIGHT}
+      position="top-right"
       autoClose={3000}
       hideProgressBar={true}
       newestOnTop={true}

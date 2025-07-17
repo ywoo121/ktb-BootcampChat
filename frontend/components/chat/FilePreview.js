@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useCallback, memo } from 'react';
-import { Button } from '@goorm-dev/vapor-components';
 import { 
-  X, 
-  AlertCircle, 
-  Image as ImageIcon, 
-  FileText, 
-  Film, 
-  Loader,
-  Music,
-  File
-} from 'lucide-react';
+  CloseOutlineIcon as X, 
+  ErrorCircleIcon as AlertCircle, 
+  ImageIcon, 
+  PdfIcon as FileText, 
+  MovieIcon as Film, 
+  LoadingOutlineIcon as Loader,
+  MusicIcon as Music,
+  FileIcon as File
+} from '@vapor-ui/icons';
+import { Button, IconButton, Callout } from '@vapor-ui/core';
 import fileService from '../../services/fileService';
 
 const FilePreview = ({ 
@@ -283,20 +283,19 @@ const FilePreview = ({
   const renderUploadStatus = useCallback(() => {
     if (uploadError) {
       return (
-        <div className="mt-2 flex items-center gap-2 text-danger text-sm" role="alert">
+        <Callout color="danger" className="mt-2 flex items-center gap-2">
           <AlertCircle className="w-4 h-4" aria-hidden="true" />
           <span className="flex-1">{uploadError}</span>
           {onRetry && (
             <Button
-              variant="ghost"
               size="sm"
+              variant="outline"
               onClick={onRetry}
-              className="text-xs"
             >
               다시 시도
             </Button>
           )}
-        </div>
+        </Callout>
       );
     }
 
@@ -349,9 +348,9 @@ const FilePreview = ({
               {variant !== 'readonly' && (
                 <div className="flex-shrink-0">
                   {!uploading && onRemove && (
-                    <Button
-                      variant="ghost"
+                    <IconButton
                       size="sm"
+                      variant="outline"
                       onClick={() => {
                         const url = previewUrlsRef.current.get(file.name);
                         if (url) {
@@ -360,12 +359,11 @@ const FilePreview = ({
                         }
                         onRemove(file);
                       }}
-                      className="remove-button"
                       title={`${file.name} 파일 제거`}
                       aria-label={`${file.name} 파일 제거`}
                     >
                       <X className="w-4 h-4" aria-hidden="true" />
-                    </Button>
+                    </IconButton>
                   )}
                 </div>
               )}
@@ -378,10 +376,10 @@ const FilePreview = ({
       {renderUploadStatus()}
 
       {files.length >= maxFiles && (
-        <div className="file-limit-warning" role="alert">
+        <Callout color="warning" className="file-limit-warning">
           <AlertCircle className="w-4 h-4" aria-hidden="true" />
           <span>파일은 최대 {maxFiles}개까지만 업로드할 수 있습니다.</span>
-        </div>
+        </Callout>
       )}
 
       {onDrop && (

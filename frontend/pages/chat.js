@@ -1,19 +1,10 @@
 import React from 'react';
-import { Card } from '@goorm-dev/vapor-core';
-import { 
-  Text,
-  Status,
-  Avatar,
-  UserAvatarGroup,
-  CountAvatar,
-  Spinner,
-  Button,
-  Alert
-} from '@goorm-dev/vapor-components';
 import { 
   AlertCircle, 
   WifiOff 
 } from 'lucide-react';
+import { Button, Text, Callout, Card, Badge, Avatar } from '@vapor-ui/core';
+import { Flex, Box, HStack } from '../components/ui/Layout';
 import { withAuth } from '../middleware/withAuth';
 import { useChatRoom } from '../hooks/useChatRoom';
 import ChatMessages from '../components/chat/ChatMessages';
@@ -69,83 +60,106 @@ const ChatPage = () => {
     const remainingCount = Math.max(0, participants.length - maxVisibleAvatars);
 
     return (
-      <div className="flex items-center gap-4 mt-2 px-6 border-b">
-        <UserAvatarGroup size="md">
+      <HStack gap="100" align="center">
           {participants.slice(0, maxVisibleAvatars).map(participant => {
             const backgroundColor = generateColorFromEmail(participant.email);
             const color = getContrastTextColor(backgroundColor);
             
             return (
-              <Avatar 
-                key={participant._id} 
-                style={{ backgroundColor, color }}
-                className="participant-avatar"
-                name={participant.name}
-              />
+              <Avatar.Root
+                key={participant._id}
+                size="md"
+                style={{ 
+                  backgroundColor, 
+                  color,
+                  flexShrink: 0
+                }}
+              >
+                <Avatar.Fallback style={{ backgroundColor, color }}>
+                  {participant.name.charAt(0).toUpperCase()}
+                </Avatar.Fallback>
+              </Avatar.Root>
             );
           })}
           {remainingCount > 0 && (
-            <CountAvatar value={remainingCount} />
+            <Avatar.Root
+              size="md"
+              style={{ 
+                backgroundColor: 'var(--vapor-color-secondary)',
+                color: 'white',
+                flexShrink: 0
+              }}
+            >
+              <Avatar.Fallback style={{ backgroundColor: 'var(--vapor-color-secondary)', color: 'white' }}>
+                +{remainingCount}
+              </Avatar.Fallback>
+            </Avatar.Root>
           )}
-          <div className="ml-3">총 {participants.length}명</div>
-        </UserAvatarGroup>
-      </div>
+          <Text typography="body2" className="ms-3">총 {participants.length}명</Text>
+      </HStack>
     );
   };
 
   const renderLoadingState = () => (
     <div className="chat-container">
-      <Card className="chat-room-card">
-        <Card.Body className="flex items-center justify-center">
-          <div className="text-center mt-5">
-            <Spinner size="lg" className="mb-4" />
+      <Card.Root className="chat-room-card">
+        <Card.Body style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box style={{ textAlign: 'center', marginTop: 'var(--vapor-space-500)' }}>
+            <div className="spinner-border mb-4" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
             <br/>
-            <Text size="lg">채팅방 연결 중...</Text>
-          </div>
+            <Text typography="heading5">채팅방 연결 중...</Text>
+          </Box>
         </Card.Body>
-      </Card>
+      </Card.Root>
     </div>
   );
 
   const renderErrorState = () => (
     <div className="chat-container">
-      <Card className="chat-room-card">
-        <Card.Body className="flex items-center justify-center">
-          <Alert color="danger" className="mb-4">
-            <AlertCircle className="w-5 h-5" />
-            <span className="ml-2">
-              {error || '채팅방을 불러오는데 실패했습니다.'}
-            </span>
-          </Alert>
+      <Card.Root className="chat-room-card">
+        <Card.Body style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <Box style={{ marginBottom: 'var(--vapor-space-400)' }}>
+            <Callout color="danger">
+              <Flex align="center" gap="200">
+                <AlertCircle className="w-5 h-5" />
+                <Text>
+                  {error || '채팅방을 불러오는데 실패했습니다.'}
+                </Text>
+              </Flex>
+            </Callout>
+          </Box>
           <Button
-            variant="primary"
             onClick={() => window.location.reload()}
           >
             다시 시도
           </Button>
         </Card.Body>
-      </Card>
+      </Card.Root>
     </div>
   );
 
   const renderContent = () => {
     if (loading) {
       return (
-        <div className="flex items-center justify-center p-4">
-          <Spinner size="sm" />
-          <Text className="ml-2">채팅방 연결 중...</Text>
+        <div className="d-flex align-items-center justify-content-center p-4">
+          <div className="spinner-border spinner-border-sm me-2" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <span>채팅방 연결 중...</span>
         </div>
       );
     }
 
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center p-4">
-          <Alert color="danger" className="mb-4">
-            <AlertCircle className="w-5 h-5" />
-            <span className="ml-2">{error}</span>
-          </Alert>
-          <Button variant="primary" onClick={() => window.location.reload()}>
+        <div className="d-flex flex-column align-items-center justify-content-center p-4">
+          <Callout color="danger" className="mb-4 d-flex align-items-center">
+            <AlertCircle className="w-5 h-5 me-2" />
+            <span>{error}</span>
+          </Callout>
+          <Button onClick={() => window.location.reload()}>
             다시 시도
           </Button>
         </div>
@@ -154,21 +168,23 @@ const ChatPage = () => {
 
     if (connectionStatus === 'disconnected') {
       return (
-        <Alert color="warning" className="m-4">
-          <WifiOff className="w-5 h-5" />
-          <span className="ml-2">연결이 끊어졌습니다. 재연결을 시도합니다...</span>
-        </Alert>
+        <Box style={{ margin: 'var(--vapor-space-400)' }}>
+          <Callout color="warning" className="d-flex align-items-center">
+            <WifiOff className="w-5 h-5 me-2" />
+            <span>연결이 끊어졌습니다. 재연결을 시도합니다...</span>
+          </Callout>
+        </Box>
       );
     }
 
     if (messageLoadError) {
       return (
-        <div className="flex flex-col items-center justify-center p-4">
-          <Alert color="danger" className="mb-4">
-            <AlertCircle className="w-5 h-5" />
-            <span className="ml-2">메시지 로딩 중 오류가 발생했습니다.</span>
-          </Alert>
-          <Button variant="primary" onClick={retryMessageLoad}>
+        <div className="d-flex flex-column align-items-center justify-content-center p-4">
+          <Callout color="danger" className="mb-4 d-flex align-items-center">
+            <AlertCircle className="w-5 h-5 me-2" />
+            <span>메시지 로딩 중 오류가 발생했습니다.</span>
+          </Callout>
+          <Button onClick={retryMessageLoad}>
             메시지 다시 로드
           </Button>
         </div>
@@ -223,19 +239,19 @@ const ChatPage = () => {
 
   return (
     <div className="chat-container">
-      <Card className="chat-room-card">
+      <Card.Root className="chat-room-card">
         <Card.Header className="chat-room-header">
-          <div className="flex items-center gap-3">
-            <Text size="xl" weight="bold" className="chat-room-title">
-              {room.name}
-            </Text>
-            {renderParticipants()}
-          </div>
-          <Status
-            label={status.label}
-            color={status.color}
-            title={connectionStatus === 'connecting' ? "재연결 시도 중..." : status.label}
-          />
+          <Flex justify="space-between" align="center">
+            <Flex align="center" gap="300">
+              <Text typography="heading4" style={{ fontWeight: 'bold' }} className="chat-room-title">
+                {room.name}
+              </Text>
+              {renderParticipants()}
+            </Flex>
+            <Badge color={status.color === 'success' ? 'success' : status.color === 'warning' ? 'warning' : 'danger'}>
+              {status.label}
+            </Badge>
+          </Flex>
         </Card.Header>
 
         <Card.Body className="chat-room-body">
@@ -273,7 +289,7 @@ const ChatPage = () => {
             onFileRemove={removeFilePreview}
           />
         </Card.Footer>
-      </Card>
+      </Card.Root>
     </div>
   );
 };

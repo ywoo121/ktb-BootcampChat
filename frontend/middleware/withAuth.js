@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { Text } from '@vapor-ui/core';
 import authService from '../services/authService';
 
 export const withAuth = (WrappedComponent) => {
@@ -40,24 +41,37 @@ export const withoutAuth = (WrappedComponent) => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-      const checkAuth = () => {
+      const checkAuth = async () => {
+        // 라우터가 준비될 때까지 대기
+        if (!router.isReady) {
+          return;
+        }
+        
         const user = authService.getCurrentUser();
-        if (user) {
-          // 이미 로그인된 사용자가 로그인/회원가입 페이지 접근 시
-          // chat-rooms로 리디렉션하되, '/'는 예외처리
-          if (router.pathname !== '/') {
-            router.replace('/chat-rooms');
-          }
+        if (user && router.pathname === '/') {
+          // 이미 로그인된 사용자가 로그인 페이지 접근 시
+          await router.replace('/chat-rooms');
         } else {
           setIsLoading(false);
         }
       };
 
       checkAuth();
-    }, [router]);
+    }, [router, router.isReady]);
 
     if (isLoading) {
-      return null;
+      return (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          backgroundColor: 'var(--vapor-color-background)',
+          color: 'var(--vapor-color-text-primary)'
+        }}>
+          <Text typography="body1">Loading...</Text>
+        </div>
+      );
     }
 
     return <WrappedComponent {...props} />;

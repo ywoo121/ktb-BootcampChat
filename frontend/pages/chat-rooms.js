@@ -1,20 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
-import { Card } from '@goorm-dev/vapor-core';
-import { 
-  Button, 
-  Status,
-  Spinner,
-  Text,
-  Alert
-} from '@goorm-dev/vapor-components';
-import {
-  HScrollTable,
-  useHScrollTable,
-  cellHelper
-} from '@goorm-dev/vapor-tables';
-import { Lock, AlertCircle, WifiOff, RefreshCcw } from 'lucide-react';
+import { LockIcon, ErrorCircleIcon, NetworkIcon, RefreshOutlineIcon, GroupIcon } from '@vapor-ui/icons';
+import { Button, Card, Text, Badge, Callout } from '@vapor-ui/core';
+import { Flex, HStack, Stack, Box } from '../components/ui/Layout';
+import { StyledTable, StyledTableHead, StyledTableBody, StyledTableRow, StyledTableHeader, StyledTableCell } from '../components/ui/StyledTable';
 import socketService from '../services/socket';
 import authService from '../services/authService';
 import axiosInstance from '../services/axios';
@@ -53,8 +43,10 @@ const INITIAL_PAGE_SIZE = 10;
 
 const LoadingIndicator = ({ text }) => (
   <div className="loading-indicator">
-    <Spinner size="sm" className="mr-3" />
-    <Text size="sm" color="secondary">{text}</Text>
+    <div className="spinner-border spinner-border-sm me-3" role="status">
+      <span className="visually-hidden">Loading...</span>
+    </div>
+    <Text typography="body3" foreground="secondary">{text}</Text>
   </div>
 );
 
@@ -155,11 +147,15 @@ const TableWrapper = ({ children, onScroll, loadingMore, hasMore, rooms }) => {
         </div>
       )}
       {!hasMore && rooms?.length > 0 && (
-        <div className="p-4 text-center border-t border-gray-700">
-          <Text size="sm" color="secondary">
+        <Flex justify="center" align="center" style={{ 
+          padding: 'var(--vapor-space-300)', 
+          borderTop: '1px solid var(--vapor-color-border)',
+          width: '100%'
+        }}>
+          <Text typography="body2" color="secondary" style={{ textAlign: 'center' }}>
             모든 채팅방을 불러왔습니다.
           </Text>
-        </div>
+        </Flex>
       )}
     </div>
   );
@@ -182,6 +178,7 @@ function ChatRoomsComponent() {
   const [pageSize] = useState(INITIAL_PAGE_SIZE);
   const [hasMore, setHasMore] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [joiningRoom, setJoiningRoom] = useState(false);
 
   // Refs
   const socketRef = useRef(null);
@@ -571,6 +568,8 @@ function ChatRoomsComponent() {
       return;
     }
 
+    setJoiningRoom(true);
+
     try {
       const response = await axiosInstance.post(`/api/rooms/${roomId}/join`, {}, {
         timeout: 5000
@@ -594,93 +593,87 @@ function ChatRoomsComponent() {
         message: error.response?.data?.message || errorMessage,
         type: 'danger'
       });
+    } finally {
+      setJoiningRoom(false);
     }
   };
 
-  const columns = useMemo(() => [
-    {
-      accessorKey: 'name',
-      header: '채팅방',
-      cell: cellHelper(({ value, rowData }) => (
-        <div className="d-flex align-items-center gap-2">
-          <Text className="font-medium">{value}</Text>
-          {rowData.hasPassword && <Lock size={14} className="text-gray-500" />}
-        </div>
-      )),
-      size: 200,
-      enableSorting: true
-    },
-    {
-      accessorKey: 'participants',
-      header: '참여자',
-      cell: cellHelper(({ value }) => (
-        <Text className="participants-count">
-          {value?.length || 0}명
-        </Text>
-      )),
-      size: 100,
-      enableSorting: true
-    },
-    {
-      accessorKey: 'createdAt',
-      header: '생성일',
-      cell: cellHelper(({ value }) => (
-        <Text className="created-at">
-          {new Date(value).toLocaleString('ko-KR', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </Text>
-      )),
-      size: 200,
-      enableSorting: true,
-      sortingFn: 'datetime'
-    },
-    {
-      accessorKey: 'actions',
-      header: '',
-      cell: cellHelper(({ rowData }) => (
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => handleJoinRoom(rowData._id)}
-          disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
-        >
-          입장
-        </Button>
-      )),
-      size: 100,
-      enableSorting: false
-    }
-  ], [connectionStatus]);
+  const renderRoomsTable = () => {
+    if (!rooms || rooms.length === 0) return null;
+    
+    return (
+      <StyledTable>
+        <StyledTableHead>
+          <StyledTableRow>
+            <StyledTableHeader width="45%">채팅방</StyledTableHeader>
+            <StyledTableHeader width="15%">참여자</StyledTableHeader>
+            <StyledTableHeader width="25%">생성일</StyledTableHeader>
+            <StyledTableHeader width="15%">액션</StyledTableHeader>
+          </StyledTableRow>
+        </StyledTableHead>
+        <StyledTableBody>
+          {rooms.map((room) => (
+            <StyledTableRow key={room._id}>
+              <StyledTableCell>
+                <Text typography="body1" style={{ fontWeight: 500, marginBottom: 'var(--vapor-space-050)' }}>{room.name}</Text>
+                {room.hasPassword && (
+                  <HStack gap="050" align="center">
+                    <LockIcon size={16} style={{ color: 'var(--vapor-color-warning)' }} />
+                    <Text typography="body1" style={{ color: 'var(--vapor-color-warning)' }}>비밀번호 필요</Text>
+                  </HStack>
+                )}
+              </StyledTableCell>
+              <StyledTableCell>
+                <Badge color="primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--vapor-space-100)' }}>
+                  <GroupIcon size={16} />
+                  <Text typography="body1" style={{ color: 'inherit' }}>{room.participants?.length || 0}</Text>
+                </Badge>
+              </StyledTableCell>
+              <StyledTableCell>
+                <Text typography="body1" style={{ color: 'var(--vapor-color-text-muted)' }}>
+                  {new Date(room.createdAt).toLocaleString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </Text>
+              </StyledTableCell>
+              <StyledTableCell>
+                <Button
+                  color="primary"
+                  variant="outline"
+                  size="md"
+                  onClick={() => handleJoinRoom(room._id)}
+                  disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
+                >
+                  입장
+                </Button>
+              </StyledTableCell>
+            </StyledTableRow>
+          ))}
+        </StyledTableBody>
+      </StyledTable>
+    );
+  };
 
-  const tableInstance = useHScrollTable({
-    data: rooms,
-    columns,
-    extraColumnType: 'index',
-    useResizeColumn: true,
-    sorting,
-    setSorting,
-    initialSorting: sorting
-  });
 
   return (
-    <div className="chat-container">
-      <Card className="chat-rooms-card">
-        <Card.Header>
-          <div className="flex justify-between items-center">
-            <Card.Title>채팅방 목록</Card.Title>
-            <div className="flex items-center gap-2">
-              <Status 
-                label={STATUS_CONFIG[connectionStatus].label} 
-                color={STATUS_CONFIG[connectionStatus].color}
-              />
+    <div className="auth-container">
+      <Card.Root className="chat-rooms-card">
+        
+        <Card.Body className="card-body">
+          <Stack gap="300" align="center">
+            <Text typography="heading3">채팅방 목록</Text>
+            <HStack gap="200">
+              <Badge color={STATUS_CONFIG[connectionStatus].color === 'success' ? 'success' : STATUS_CONFIG[connectionStatus].color === 'warning' ? 'warning' : 'danger'}>
+                {STATUS_CONFIG[connectionStatus].label}
+              </Badge>
               {(error || connectionStatus === CONNECTION_STATUS.ERROR) && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
+                  color="secondary"
                   size="sm"
                   onClick={() => {
                     lastLoadedPageRef.current = 0;
@@ -688,72 +681,101 @@ function ChatRoomsComponent() {
                     fetchRooms(false);
                   }}
                   disabled={isRetrying}
-                  className="ml-2"
                 >
-                  <RefreshCcw className="w-4 h-4" />
+                  <RefreshOutlineIcon size={16} />
                   재연결
                 </Button>
               )}
-            </div>
-          </div>
-        </Card.Header>
-        
-        <Card.Body className="p-6">
+            </HStack>
+          </Stack>
+
           {error && (
-            <Alert color={error.type} className="mb-4">
-              <div className="flex items-start gap-2">
+            <Box mt="400">
+            <Callout 
+              color={error.type === 'danger' ? 'danger' : error.type === 'warning' ? 'warning' : 'primary'} 
+              className="mb-4"
+            >
+              <Flex align="flex-start" gap="200">
                 {connectionStatus === CONNECTION_STATUS.ERROR ? (
-                  <WifiOff className="w-4 h-4 mt-1" />
+                  <NetworkIcon size={16} style={{ marginTop: '4px' }} />
                 ) : (
-                  <AlertCircle className="w-4 h-4 mt-1" />
+                  <ErrorCircleIcon size={16} style={{ marginTop: '4px' }} />
                 )}
                 <div>
-                  <div className="font-medium">{error.title}</div>
-                  <div className="mt-1">{error.message}</div>
+                  <Text typography="subtitle2" style={{ fontWeight: 500 }}>{error.title}</Text>
+                  <Text typography="body2" style={{ marginTop: 'var(--vapor-space-050)' }}>{error.message}</Text>
                   {error.showRetry && !isRetrying && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
+                      color="secondary"
                       size="sm"
+                      style={{ marginTop: 'var(--vapor-space-200)' }}
                       onClick={() => {
                         lastLoadedPageRef.current = 0;
                         setPageIndex(0);
                         fetchRooms(false);
                       }}
-                      className="mt-2"
                     >
                       다시 시도
                     </Button>
                   )}
                 </div>
-              </div>
-            </Alert>
+              </Flex>
+            </Callout>
+            </Box>
           )}
           
           {loading ? (
-            <LoadingIndicator text="채팅방 목록을 불러오는 중..." />
+            <Box mt="400">
+              <LoadingIndicator text="채팅방 목록을 불러오는 중..." />
+            </Box>
           ) : rooms.length > 0 ? (
-            <TableWrapper
-              onScroll={handleLoadMore}
-              loadingMore={loadingMore}
-              hasMore={hasMore}
-              rooms={rooms}
-            >
-              <HScrollTable {...tableInstance.getTableProps()} />
-            </TableWrapper>
+            <Box mt="400">
+              <TableWrapper
+                onScroll={handleLoadMore}
+                loadingMore={loadingMore}
+                hasMore={hasMore}
+                rooms={rooms}
+              >
+                {renderRoomsTable()}
+              </TableWrapper>
+            </Box>
           ) : !error && (
-            <div className="chat-rooms-empty">
-              <Text className="mb-4">생성된 채팅방이 없습니다.</Text>
+            <Box mt="400" style={{ textAlign: 'center' }}>
+              <Text typography="body1" style={{ marginBottom: 'var(--vapor-space-400)' }}>생성된 채팅방이 없습니다.</Text>
               <Button
-                variant="primary"
+                color="primary"
                 onClick={() => router.push('/chat-rooms/new')}
                 disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
               >
                 새 채팅방 만들기
               </Button>
-            </div>
+            </Box>
           )}
         </Card.Body>
-      </Card>
+      </Card.Root>
+      
+      {joiningRoom && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <Stack align="center" gap="300">
+            <div className="spinner-border spinner-border-lg text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <Text typography="body1" style={{ color: 'white' }}>채팅방 입장 중...</Text>
+          </Stack>
+        </div>
+      )}
     </div>
   );
 }
@@ -762,11 +784,16 @@ const ChatRooms = dynamic(() => Promise.resolve(ChatRoomsComponent), {
   ssr: false,
   loading: () => (
     <div className="auth-container">
-      <Card className="chat-rooms-card">
-        <Card.Body className="p-6">
-          <LoadingIndicator text="로딩 중..." />
+      <Card.Root className="chat-rooms-card">
+        <Card.Body className="card-body">
+          <Stack gap="300" align="center">
+            <Text typography="heading3">채팅방 목록</Text>
+          </Stack>
+          <Box mt="400">
+            <LoadingIndicator text="로딩 중..." />
+          </Box>
         </Card.Body>
-      </Card>
+      </Card.Root>
     </div>
   )
 });

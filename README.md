@@ -56,13 +56,9 @@ npm install -g pm2
 git clone [repository-url]
 cd bootcampchat
 
-# 백엔드 패키지 설치
-cd backend
-npm install
-
-# 프론트엔드 패키지 설치
-cd ../frontend
-npm install
+# 루트 디렉토리에서 모든 패키지 설치
+npm install  # concurrently 설치
+npm run setup  # frontend와 backend 패키지 설치
 ```
 
 ### 3. 환경 변수 설정
@@ -126,24 +122,20 @@ NEXT_PUBLIC_ENCRYPTION_KEY=your_encryption_key
 NEXT_PUBLIC_PASSWORD_SALT=your_password_salt
 ```
 
-### 4. 실행 스크립트 설정 및 실행
+### 4. 애플리케이션 실행
 
 ```bash
-# 실행 스크립트 권한 설정
-chmod +x run.sh
+# 개발 모드로 실행 (frontend와 backend 동시 실행)
+npm run dev
 
-# 모든 서비스 시작
-./run.sh start
-
-# 서비스 상태 확인
-./run.sh status
-
-# 서비스 중지
-./run.sh stop
-
-# 서비스 재시작
-./run.sh restart
+# 프로덕션 모드로 실행
+npm run build  # frontend 빌드
+npm start       # frontend와 backend 동시 실행
 ```
+
+**참고**: MongoDB와 Redis가 실행 중이어야 합니다.
+- MongoDB: `mongod --dbpath ~/data/db`
+- Redis: `redis-server`
 
 ## 서비스 접속 방법
 
@@ -159,7 +151,7 @@ http://localhost:3000
 2. 자동으로 생성된 URL 확인 (예: `https://chat.goorm-kdt-001.goorm.team`)
 3. 터미널에서 실행:
    ```bash
-   ./run.sh start
+   npm run dev
    ```
 
 ### AWS 배포

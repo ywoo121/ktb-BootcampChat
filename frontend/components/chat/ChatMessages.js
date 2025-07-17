@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { Spinner, Text } from '@goorm-dev/vapor-components';
+import { Text } from '@vapor-ui/core';
 import { SystemMessage, FileMessage, UserMessage, AIMessage } from './Message';
 
 // ScrollHandler 클래스 정의
@@ -233,23 +233,25 @@ class ScrollHandler {
 
 const LoadingIndicator = React.memo(({ text }) => (
   <div className="loading-messages">
-    <Spinner size="sm" className="text-primary" />
-    <Text size="sm" color="secondary">{text}</Text>
+    <div className="spinner-border spinner-border-sm text-primary" role="status">
+      <span className="visually-hidden">Loading...</span>
+    </div>
+    <span className="text-secondary text-sm">{text}</span>
   </div>
 ));
 LoadingIndicator.displayName = 'LoadingIndicator';
 
 const MessageHistoryEnd = React.memo(() => (
   <div className="message-history-end">
-    <Text size="sm" color="secondary">더 이상 불러올 메시지가 없습니다.</Text>
+    <span className="text-secondary text-sm">더 이상 불러올 메시지가 없습니다.</span>
   </div>
 ));
 MessageHistoryEnd.displayName = 'MessageHistoryEnd';
 
 const EmptyMessages = React.memo(() => (
   <div className="empty-messages">
-    <p>아직 메시지가 없습니다.</p>
-    <p>첫 메시지를 보내보세요!</p>
+    <Text typography="body1">아직 메시지가 없습니다.</Text>
+    <Text typography="body2" color="neutral-weak">첫 메시지를 보내보세요!</Text>
   </div>
 ));
 EmptyMessages.displayName = 'EmptyMessages';

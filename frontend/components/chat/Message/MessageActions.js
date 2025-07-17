@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { SmilePlus, Copy } from 'lucide-react';
-import { Button, Tooltip } from '@goorm-dev/vapor-components';
+import ReactDOM from 'react-dom';
+import { LikeIcon, CopyIcon } from '@vapor-ui/icons';
+import { Button, IconButton } from '@vapor-ui/core';
 import EmojiPicker from '../EmojiPicker';
 import { Toast } from '../../Toast';
 
@@ -138,26 +139,20 @@ const MessageActions = ({
               <Button
                 ref={reactionRefs.current[emoji]}
                 id={reactionId}
-                className={`reaction-badge ${users.includes(currentUserId) ? 'active' : ''}`}
+                size="sm"
+                variant={users.includes(currentUserId) ? 'solid' : 'outline'}
+                color={users.includes(currentUserId) ? 'primary' : 'secondary'}
+                className="reaction-badge"
                 onClick={() => handleReactionSelect(emoji)}
                 onMouseEnter={() => toggleTooltip(emoji)}
                 onMouseLeave={() => toggleTooltip(emoji)}
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title={tooltipContent}
               >
                 <span className="reaction-emoji">{emoji}</span>
                 <span className="reaction-count">{users.length}</span>
               </Button>
-              {tooltipContent && (
-                <Tooltip
-                  id={reactionId}
-                  target={reactionId}
-                  placement="top"
-                  hideArrow={false}
-                  isOpen={tooltipStates[emoji] || false}
-                  toggle={() => toggleTooltip(emoji)}
-                >
-                  {tooltipContent}
-                </Tooltip>
-              )}
             </React.Fragment>
           );
         })}
@@ -170,31 +165,70 @@ const MessageActions = ({
     setShowEmojiPicker(prev => !prev);
   }, []);
 
+  // Calculate emoji picker position
+  const getEmojiPickerPosition = useCallback(() => {
+    if (!emojiButtonRef.current) return { top: 0, left: 0 };
+    
+    const buttonRect = emojiButtonRef.current.getBoundingClientRect();
+    const pickerHeight = 350; // Approximate height
+    const pickerWidth = 350; // Approximate width
+    const buttonHeight = buttonRect.height;
+    
+    // Position above the left edge of the emoji button with gap
+    let top = buttonRect.top - pickerHeight - 15; // 15px gap above button
+    let left = buttonRect.left; // Align with left edge of button
+    
+    // If not enough space above, show below the button
+    if (top < 10) {
+      top = buttonRect.bottom + 15; // 15px gap below button
+    }
+    
+    // Ensure picker doesn't go off the right edge
+    if (left + pickerWidth > window.innerWidth) {
+      left = window.innerWidth - pickerWidth - 10;
+    }
+    
+    // Ensure picker doesn't go off the left edge
+    if (left < 10) {
+      left = 10;
+    }
+    
+    return { top, left };
+  }, []);
+
   return (
     <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`} ref={containerRef}>
       {renderReactions()}
       
       <div className={`message-actions-wrapper ${isMine ? 'mine' : ''}`}>
-        <div className="message-actions">
+        <div className="message-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--vapor-space-100)' }}>
           <div style={{ position: 'relative' }}>
-            <Button
+            <IconButton
               ref={emojiButtonRef}
               size="sm"
-              variant="ghost"
-              className="action-button"
+              variant="outline"
               onClick={toggleEmojiPicker}
-              title="리액션 추가"
+              aria-label="리액션 추가"
             >
-              <SmilePlus className="w-4 h-4" />
-            </Button>
+              <LikeIcon size={16} />
+            </IconButton>
 
-            {showEmojiPicker && (
+            {showEmojiPicker && typeof window !== 'undefined' && ReactDOM.createPortal(
               <div 
                 ref={emojiPickerRef}
-                className={`emoji-picker ${isMine ? 'mine' : ''}`}
+                style={{
+                  position: 'fixed',
+                  ...getEmojiPickerPosition(),
+                  zIndex: 9999
+                }}
                 onClick={e => e.stopPropagation()}
               >
-                <div className="emoji-picker-container">
+                <div className="emoji-picker-container" style={{
+                  backgroundColor: 'var(--vapor-color-normal)',
+                  borderRadius: 'var(--vapor-radius-lg)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  border: '1px solid var(--vapor-color-border)'
+                }}>
                   <EmojiPicker 
                     onSelect={handleReactionSelect}
                     emojiSize={20}
@@ -202,18 +236,18 @@ const MessageActions = ({
                     theme="light"
                   />
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="action-button"
-              onClick={handleCopy}
-              title="메시지 복사"
-            >
-              <Copy className="w-4 h-4" />
-            </Button>            
           </div>
+          <IconButton
+            size="sm"
+            variant="outline"
+            onClick={handleCopy}
+            aria-label="메시지 복사"
+          >
+            <CopyIcon size={16} />
+          </IconButton>
         </div>
       </div>
     </div>
