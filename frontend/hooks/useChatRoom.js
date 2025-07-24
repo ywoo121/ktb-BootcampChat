@@ -29,6 +29,8 @@ export const useChatRoom = () => {
   const [connectionStatus, setConnectionStatus] = useState('checking');
   const [messageLoadError, setMessageLoadError] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [fightblockMode, setFightblockMode] = useState(false);
+  const [streamingAegyoMessages, setStreamingAegyoMessages] = useState({});
   
   // Refs
   const messageInputRef = useRef(null);
@@ -392,7 +394,63 @@ export const useChatRoom = () => {
       setError(error.message || '채팅 연결에 문제가 발생했습니다.');
     });
 
-  }, [isNearBottom, scrollToBottom, messages.length, processMessages, setupAIMessageListeners, setHasMoreMessages, cleanup, router, handleReactionUpdate, setLoadingMessages, setError]);
+    socketRef.current.on('fightblockMode', (data) => {
+      if (!mountedRef.current) return;
+      setFightblockMode(!!data?.enabled);
+    });
+
+    // 애교 메시지 스트림 이벤트
+    socketRef.current.on('aegyoMessageStart', (data) => {
+      setStreamingAegyoMessages(prev => ({
+        ...prev,
+        [data.messageId]: {
+          _id: data.messageId,
+          type: 'text',
+          content: '',
+          timestamp: new Date(data.timestamp),
+          isStreaming: true,
+          isAegyo: true,
+          sender: data.sender || currentUser // 서버에서 sender가 오면 사용, 없으면 currentUser
+        }
+      }));
+    });
+    socketRef.current.on('aegyoMessageChunk', (data) => {
+      setStreamingAegyoMessages(prev => {
+        if (!prev[data.messageId]) return prev;
+        return {
+          ...prev,
+          [data.messageId]: {
+            ...prev[data.messageId],
+            content: data.fullContent,
+            sender: data.sender || prev[data.messageId].sender // 서버 sender 우선, 없으면 기존 sender 유지
+          }
+        };
+      });
+    });
+    socketRef.current.on('aegyoMessageComplete', (data) => {
+      setStreamingAegyoMessages(prev => {
+        const { [data.messageId]: completed, ...rest } = prev;
+        return rest;
+      });
+      setMessages(prev => [...prev, {
+        _id: data._id,
+        type: 'text',
+        content: data.content,
+        timestamp: new Date(data.timestamp),
+        isAegyo: true,
+        isComplete: true,
+        sender: data.sender // 서버에서 내려준 sender 정보만 사용
+      }]);
+    });
+    socketRef.current.on('aegyoMessageError', (data) => {
+      setStreamingAegyoMessages(prev => {
+        const { [data.messageId]: failed, ...rest } = prev;
+        return rest;
+      });
+      // 에러 토스트 등 필요시 추가
+    });
+
+  }, [isNearBottom, scrollToBottom, messages.length, processMessages, setupAIMessageListeners, setHasMoreMessages, cleanup, router, handleReactionUpdate, setLoadingMessages, setError, setFightblockMode, currentUser]);
 
   // Room handling hook initialization
   const {
@@ -561,6 +619,13 @@ export const useChatRoom = () => {
     };
   }, [router, cleanup, setupRoom, currentUser, isInitialized, setError]);
 
+  // 싸움방지 모드 상태 초기화: 방을 나가거나 새로 입장할 때 false로
+  useEffect(() => {
+    if (!router.query.room) {
+      setFightblockMode(false);
+    }
+  }, [router.query.room]);
+
   // File handling hook
   const {
     fileInputRef,
@@ -602,6 +667,8 @@ export const useChatRoom = () => {
     isNearBottom,
     hasMoreMessages,
     loadingMessages,
+    fightblockMode,
+    streamingAegyoMessages,
     
     // Refs
     fileInputRef,

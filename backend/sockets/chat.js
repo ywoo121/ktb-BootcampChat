@@ -552,6 +552,46 @@ module.exports = function(io) {
           throw new Error('채팅방 정보가 없습니다.');
         }
 
+        // 싸움방지 모드 명령어 감지
+        if (type === 'text' && content && content.trim() === '@싸움방지') {
+          // Redis에 싸움방지 모드 활성화
+          const redis = await redisClient.connect();
+          await redis.set(`fightblock:${room}`, 'on');
+          // 모든 참가자에게 싸움방지 모드 활성화 알림
+          io.to(room).emit('fightblockMode', { enabled: true });
+
+          // 시스템 메시지로 저장
+          const systemMsg = new Message({
+            room,
+            content: '싸움방지 모드가 활성화되었습니다! 이제 모두 애교쟁이~',
+            type: 'system',
+            timestamp: new Date()
+          });
+          await systemMsg.save();
+          io.to(room).emit('message', systemMsg);
+          return;
+        }
+
+        // 싸움방지 모드 해제 명령어 감지
+        if (type === 'text' && content && content.trim() === '@싸움방지해제') {
+          // Redis에서 싸움방지 모드 해제
+          const redis = await redisClient.connect();
+          await redis.del(`fightblock:${room}`);
+          // 모든 참가자에게 싸움방지 모드 비활성화 알림
+          io.to(room).emit('fightblockMode', { enabled: false });
+
+          // 시스템 메시지로 저장
+          const systemMsg = new Message({
+            room,
+            content: '싸움방지 모드가 해제되었습니다! 이제 자유롭게 대화하세요~',
+            type: 'system',
+            timestamp: new Date()
+          });
+          await systemMsg.save();
+          io.to(room).emit('message', systemMsg);
+          return;
+        }
+
         // 채팅방 권한 확인
         const chatRoom = await Room.findOne({
           _id: room,
@@ -583,6 +623,77 @@ module.exports = function(io) {
           hasFileData: !!fileData,
           hasAIMentions: aiMentions.length
         });
+
+        // 싸움방지 모드 상태 확인 (텍스트 메시지에만 적용, 스트림 방식)
+        let aegyoTransformed = false;
+        let aegyoContent = content;
+        let aegyoStreamId = null;
+        if (type === 'text' && content) {
+          const redis = await redisClient.connect();
+          const fightblock = await redis.get(`fightblock:${room}`);
+          if (fightblock === 'on') {
+            aegyoTransformed = true;
+            aegyoStreamId = `aegyo-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+            let accumulated = '';
+            io.to(room).emit('aegyoMessageStart', { messageId: aegyoStreamId, timestamp: new Date() });
+            try {
+              await aiService.generateAegyoMessageStream(content, {
+                onStart: () => {},
+                onChunk: async ({ currentChunk }) => {
+                  accumulated += currentChunk || '';
+                  io.to(room).emit('aegyoMessageChunk', {
+                    messageId: aegyoStreamId,
+                    currentChunk,
+                    fullContent: accumulated,
+                    timestamp: new Date(),
+                    isComplete: false
+                  });
+                },
+                onComplete: async ({ content: finalContent }) => {
+                  // 메시지 저장
+                  const message = new Message({
+                    room,
+                    sender: socket.user.id,
+                    content: finalContent,
+                    type: 'text',
+                    timestamp: new Date(),
+                    reactions: {},
+                    metadata: { aegyo: true }
+                  });
+                  await message.save();
+                  await message.populate([
+                    { path: 'sender', select: 'name email profileImage' }
+                  ]);
+                  io.to(room).emit('aegyoMessageComplete', {
+                    messageId: aegyoStreamId,
+                    _id: message._id,
+                    content: finalContent,
+                    timestamp: new Date(),
+                    isComplete: true,
+                    sender: {
+                      id: String(message.sender._id || message.sender.id),
+                      name: message.sender.name,
+                      email: message.sender.email,
+                      profileImage: message.sender.profileImage
+                    }
+                  });
+                },
+                onError: (error) => {
+                  io.to(room).emit('aegyoMessageError', {
+                    messageId: aegyoStreamId,
+                    error: error.message || '애교 변환 중 오류가 발생했습니다.'
+                  });
+                }
+              });
+            } catch (err) {
+              io.to(room).emit('aegyoMessageError', {
+                messageId: aegyoStreamId,
+                error: err.message || '애교 변환 중 오류가 발생했습니다.'
+              });
+            }
+            return;
+          }
+        }
 
         // 메시지 타입별 처리
         switch (type) {
@@ -617,7 +728,7 @@ module.exports = function(io) {
             break;
 
           case 'text':
-            const messageContent = content?.trim() || messageData.msg?.trim();
+            const messageContent = aegyoContent?.trim() || messageData.msg?.trim();
             if (!messageContent) {
               return;
             }
@@ -628,7 +739,8 @@ module.exports = function(io) {
               content: messageContent,
               type: 'text',
               timestamp: new Date(),
-              reactions: {}
+              reactions: {},
+              metadata: aegyoTransformed ? { aegyo: true } : {}
             });
             break;
 

@@ -32,7 +32,8 @@ const ChatInput = forwardRef(({
   setShowMentionList = () => {},
   setMentionFilter = () => {},
   setMentionIndex = () => {},
-  room = null // room prop 추가
+  room = null, // room prop 추가
+  fightblockMode = false // 싸움방지 모드 prop 추가
 }, ref) => {
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
@@ -516,6 +517,15 @@ const ChatInput = forwardRef(({
           setIsDragging(true);
         }}
         onDrop={handleFileDrop}
+        style={fightblockMode ? {
+          background: '#fff0f7',
+          borderRadius: '16px',
+          padding: '16px',
+          color: '#7a2250',
+          border: '1.5px solid #ffb6d5',
+          boxShadow: '0 2px 8px 0 #ffd6e7',
+          marginBottom: '8px'
+        } : {}}
       >
       <div className="chat-input">
         {files.length > 0 && (
@@ -545,27 +555,27 @@ const ChatInput = forwardRef(({
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder={isDragging ? "파일을 여기에 놓아주세요." : "메시지를 입력하세요... (@를 입력하여 멘션, Shift + Enter로 줄바꿈)"}
+            placeholder="메시지를 입력하세요... (@를 입력하여 멘션, Shift + Enter로 줄바꿈)"
             disabled={isDisabled}
             rows={1}
             autoComplete="off"
             spellCheck="true"
             className="chat-input-textarea"
-            style={{
+            style={fightblockMode ? {
+              background: '#fff0f7',
+              color: '#7a2250',
+              border: '1.5px solid #ffb6d5',
+              borderRadius: '12px',
+              padding: '12px',
+              fontSize: '16px',
               minHeight: '40px',
-              maxHeight: `${parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5 * 10}px`,
               resize: 'none',
+              boxShadow: 'none',
+              outline: 'none',
               width: '100%',
-              border: '1px solid var(--vapor-color-border)',
-              borderRadius: 'var(--vapor-radius-md)',
-              padding: 'var(--vapor-space-150)',
-              paddingRight: '120px', // Space for send button
-              backgroundColor: 'var(--vapor-color-normal)',
-              color: 'var(--vapor-color-text-primary)',
-              fontSize: 'var(--vapor-font-size-100)',
-              lineHeight: '1.5',
-              transition: 'all 0.2s ease'
-            }}
+              marginBottom: '8px',
+              '::placeholder': { color: '#c97ca6' }
+            } : {}}
           />
           <Button
             color="primary"
@@ -573,7 +583,17 @@ const ChatInput = forwardRef(({
             onClick={handleSubmit}
             disabled={isDisabled || (!message.trim() && files.length === 0)}
             aria-label="메시지 보내기"
-            style={{ 
+            style={fightblockMode ? {
+              position: 'absolute',
+              bottom: '8px',
+              right: '8px',
+              padding: '8px 16px',
+              background: '#ffb6d5',
+              color: '#7a2250',
+              borderRadius: '8px',
+              border: 'none',
+              fontWeight: 'bold'
+            } : {
               position: 'absolute',
               bottom: '8px',
               right: '8px',

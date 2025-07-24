@@ -130,6 +130,74 @@ class AIService {
       throw new Error('AI 응답 생성 중 오류가 발생했습니다.');
     }
   }
+
+  async generateAegyoMessageStream(message, callbacks) {
+    try {
+      const systemPrompt = `다음 사용자의 메시지를 '~용', '~뀽'으로 끝나는 아주 사랑스럽고 귀여운 애교 섞인 말투로 바꿔줘.\n- 하트 이모티콘(❤️, 💕, 💖 등)을 너무 과하지 않게 적절히 섞어서 사용해줘.\n- 비속어, 욕설, 부적절한 표현이 있다면 예쁘고 긍정적인 말로 순화해서 바꿔줘.\n- 존댓말이 아닌 반말로, 귀엽고 사랑스럽게, 너무 과하지 않게 자연스럽게 변환해줘.\n- 메시지의 원래 의미와 맥락은 유지해줘.\n- 예시: '오늘 뭐해?' → '오늘 뭐해용~ 💕', '밥 먹었어?' → '밥 먹었용~ ❤️', '나랑 놀자' → '나랑 놀자뀽~ 💖'\n- 변환된 문장만 출력해줘. 설명이나 부연설명은 필요 없어.`;
+
+      callbacks.onStart?.();
+
+      const response = await this.openaiClient.post('/chat/completions', {
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ],
+        temperature: 0.7,
+        stream: true
+      }, {
+        responseType: 'stream'
+      });
+
+      let fullResponse = '';
+      let buffer = '';
+
+      return new Promise((resolve, reject) => {
+        response.data.on('data', async chunk => {
+          try {
+            buffer += chunk.toString();
+            while (true) {
+              const newlineIndex = buffer.indexOf('\n');
+              if (newlineIndex === -1) break;
+              const line = buffer.slice(0, newlineIndex).trim();
+              buffer = buffer.slice(newlineIndex + 1);
+              if (line === '') continue;
+              if (line === 'data: [DONE]') {
+                callbacks.onComplete?.({ content: fullResponse.trim() });
+                resolve(fullResponse.trim());
+                return;
+              }
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  const content = data.choices[0]?.delta?.content;
+                  if (content) {
+                    await callbacks.onChunk?.({ currentChunk: content });
+                    fullResponse += content;
+                  }
+                } catch (err) {
+                  console.error('JSON parsing error:', err);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Stream processing error:', error);
+            callbacks.onError?.(error);
+            reject(error);
+          }
+        });
+        response.data.on('error', error => {
+          console.error('Stream error:', error);
+          callbacks.onError?.(error);
+          reject(error);
+        });
+      });
+    } catch (error) {
+      console.error('Aegyo message stream error:', error);
+      callbacks.onError?.(error);
+      throw new Error('애교 메시지 변환 중 오류가 발생했습니다.');
+    }
+  }
 }
 
 module.exports = new AIService();

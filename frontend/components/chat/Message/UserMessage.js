@@ -6,8 +6,10 @@ import ReadStatus from '../ReadStatus';
 import { generateColorFromEmail, getContrastTextColor } from '../../../utils/colorUtils';
 
 const UserMessage = ({
-  msg = {}, 
-  isMine = false, 
+  msg = {},
+  isStreaming = false,
+  isAegyo = false,
+  isMine = false,
   currentUser = null,
   onReactionAdd,
   onReactionRemove,
@@ -50,9 +52,19 @@ const UserMessage = ({
             {isMine ? '나' : msg.sender?.name}
           </span>
         </div>
-        <div className={`message-bubble ${isMine ? 'message-mine' : 'message-other'} last relative group`}>
+        <div className={[
+          'message-bubble',
+          isMine ? 'message-mine' : 'message-other',
+          isAegyo ? 'message-aegyo' : '',
+          'last', 'relative', 'group'
+        ].join(' ')}>
           <div className="message-content">
             <MessageContent content={msg.content} />
+            {isStreaming && (
+              <div className="typing-indicator">
+                <span></span><span></span><span></span>
+              </div>
+            )}
           </div>
           <div className="message-footer">
             <div className="message-time mr-3">
