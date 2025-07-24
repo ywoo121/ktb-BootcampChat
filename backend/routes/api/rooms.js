@@ -30,6 +30,8 @@ const initializeSocket = (socketIO) => {
 router.get('/health', async (req, res) => {
   try {
     const isMongoConnected = require('mongoose').connection.readyState === 1;
+    
+    // 🚀 LEAN 최적화: 헬스체크용 쿼리
     const recentRoom = await Room.findOne()
       .sort({ createdAt: -1 })
       .select('createdAt')
@@ -72,7 +74,7 @@ router.get('/health', async (req, res) => {
   }
 });
 
-// 채팅방 목록 조회 (페이징 적용)
+// 채팅방 목록 조회 (페이징 적용) - 🚀 LEAN 최적화
 router.get('/', [limiter, auth], async (req, res) => {
   try {
     // 쿼리 파라미터 검증 (페이지네이션)
@@ -95,17 +97,26 @@ router.get('/', [limiter, auth], async (req, res) => {
       filter.name = { $regex: req.query.search, $options: 'i' };
     }
 
-    // 총 문서 수 조회
+    // 🚀 LEAN 최적화: 총 문서 수 조회
     const totalCount = await Room.countDocuments(filter);
 
-    // 채팅방 목록 조회 with 페이지네이션
+    // 🚀 LEAN 최적화: 채팅방 목록 조회 with 페이지네이션
     const rooms = await Room.find(filter)
-      .populate('creator', 'name email')
-      .populate('participants', 'name email')
+      .populate({
+        path: 'creator',
+        select: 'name email',
+        options: { lean: true } // populate도 lean() 적용
+      })
+      .populate({
+        path: 'participants',
+        select: 'name email',
+        options: { lean: true } // populate도 lean() 적용
+      })
+      .select('name hasPassword creator participants createdAt') // 필요한 필드만
       .sort({ [sortField]: sortOrder === 'desc' ? -1 : 1 })
       .skip(skip)
       .limit(pageSize)
-      .lean();
+      .lean(); // 메인 쿼리도 lean() 적용
 
     // 안전한 응답 데이터 구성 
     const safeRooms = rooms.map(room => {
@@ -181,7 +192,7 @@ router.get('/', [limiter, auth], async (req, res) => {
   }
 });
 
-// 채팅방 생성
+// 채팅방 생성 (lean() 불가 - 새로운 문서 생성)
 router.post('/', auth, async (req, res) => {
   try {
     const { name, password } = req.body;
@@ -201,14 +212,25 @@ router.post('/', auth, async (req, res) => {
     });
 
     const savedRoom = await newRoom.save();
+    
+    // 🚀 LEAN 최적화: 생성된 방 정보 조회
     const populatedRoom = await Room.findById(savedRoom._id)
-      .populate('creator', 'name email')
-      .populate('participants', 'name email');
+      .populate({
+        path: 'creator',
+        select: 'name email',
+        options: { lean: true }
+      })
+      .populate({
+        path: 'participants',
+        select: 'name email',
+        options: { lean: true }
+      })
+      .lean();
     
     // Socket.IO를 통해 새 채팅방 생성 알림
     if (io) {
       io.to('room-list').emit('roomCreated', {
-        ...populatedRoom.toObject(),
+        ...populatedRoom,
         password: undefined
       });
     }
@@ -216,7 +238,7 @@ router.post('/', auth, async (req, res) => {
     res.status(201).json({
       success: true,
       data: {
-        ...populatedRoom.toObject(),
+        ...populatedRoom,
         password: undefined
       }
     });
@@ -230,12 +252,22 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// 특정 채팅방 조회
+// 🚀 LEAN 최적화: 특정 채팅방 조회
 router.get('/:roomId', auth, async (req, res) => {
   try {
     const room = await Room.findById(req.params.roomId)
-      .populate('creator', 'name email')
-      .populate('participants', 'name email');
+      .populate({
+        path: 'creator',
+        select: 'name email',
+        options: { lean: true }
+      })
+      .populate({
+        path: 'participants',
+        select: 'name email',
+        options: { lean: true }
+      })
+      .select('name hasPassword creator participants createdAt')
+      .lean();
 
     if (!room) {
       return res.status(404).json({
@@ -247,7 +279,7 @@ router.get('/:roomId', auth, async (req, res) => {
     res.json({
       success: true,
       data: {
-        ...room.toObject(),
+        ...room,
         password: undefined
       }
     });
@@ -260,7 +292,7 @@ router.get('/:roomId', auth, async (req, res) => {
   }
 });
 
-// 채팅방 입장
+// 채팅방 입장 (수정이 필요하므로 lean() 사용 불가)
 router.post('/:roomId/join', auth, async (req, res) => {
   try {
     const { password } = req.body;
@@ -290,12 +322,19 @@ router.post('/:roomId/join', auth, async (req, res) => {
       await room.save();
     }
 
-    const populatedRoom = await room.populate('participants', 'name email');
+    // 🚀 LEAN 최적화: 업데이트된 방 정보 조회
+    const populatedRoom = await Room.findById(room._id)
+      .populate({
+        path: 'participants',
+        select: 'name email',
+        options: { lean: true }
+      })
+      .lean();
 
     // Socket.IO를 통해 참여자 업데이트 알림
     if (io) {
       io.to(req.params.roomId).emit('roomUpdate', {
-        ...populatedRoom.toObject(),
+        ...populatedRoom,
         password: undefined
       });
     }
@@ -303,7 +342,7 @@ router.post('/:roomId/join', auth, async (req, res) => {
     res.json({
       success: true,
       data: {
-        ...populatedRoom.toObject(),
+        ...populatedRoom,
         password: undefined
       }
     });

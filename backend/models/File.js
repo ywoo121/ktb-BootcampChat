@@ -71,8 +71,81 @@ const FileSchema = new mongoose.Schema({
   toObject: { getters: true }
 });
 
-// 복합 인덱스
-FileSchema.index({ filename: 1, user: 1 }, { unique: true });
+// 🚀 MongoDB 인덱스 최적화
+// 파일 고유성 보장 인덱스
+FileSchema.index({ filename: 1 }, { unique: true }); // 파일명 고유성
+FileSchema.index({ filename: 1, user: 1 }); // 사용자별 파일명
+
+// 사용자별 파일 조회 인덱스
+FileSchema.index({ user: 1, uploadDate: -1 }); // 사용자별 최신 파일부터
+FileSchema.index({ user: 1, mimetype: 1 }); // 사용자별 파일 타입
+FileSchema.index({ user: 1, size: -1 }); // 사용자별 파일 크기순
+
+// 파일 검색 최적화 인덱스
+FileSchema.index({ originalname: 'text' }); // 원본 파일명 텍스트 검색
+FileSchema.index({ 
+  user: 1, 
+  originalname: 'text' 
+}, { 
+  background: true,
+  name: 'user_file_search_idx'
+}); // 사용자별 파일 검색
+
+// 파일 타입별 조회 인덱스
+FileSchema.index({ mimetype: 1, uploadDate: -1 }); // 타입별 최신 파일
+FileSchema.index({ 
+  mimetype: 1, 
+  size: -1 
+}, { 
+  background: true,
+  name: 'file_type_size_idx'
+}); // 타입별 크기순
+
+// 성능 최적화 인덱스
+FileSchema.index({ 
+  uploadDate: -1 
+}, { 
+  name: 'recent_files_idx'
+}); // 전체 최신 파일
+
+FileSchema.index({
+  user: 1,
+  createdAt: -1
+}, {
+  background: true,
+  name: 'user_files_idx'
+}); // 사용자별 파일 생성일순
+
+// 파일 크기별 조회 인덱스 (관리용)
+FileSchema.index({ 
+  size: -1, 
+  uploadDate: -1 
+}, { 
+  background: true,
+  name: 'large_files_idx'
+}); // 큰 파일부터
+
+// 이미지 파일 전용 인덱스
+FileSchema.index({
+  mimetype: 1,
+  uploadDate: -1
+}, {
+  partialFilterExpression: { 
+    mimetype: { $regex: '^image/' } 
+  },
+  name: 'image_files_idx'
+}); // 이미지 파일만
+
+// 동영상 파일 전용 인덱스
+FileSchema.index({
+  mimetype: 1,
+  size: -1
+}, {
+  partialFilterExpression: { 
+    mimetype: { $regex: '^video/' } 
+  },
+  name: 'video_files_idx'
+}); // 동영상 파일만
 
 // 파일 삭제 전 처리
 FileSchema.pre('remove', async function(next) {
