@@ -45,7 +45,7 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
       if (!user?.token) throw new Error('인증 정보가 없습니다.');
 
       // 4. Presigned URL 요청
-      const presignRes = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/files/presigned-upload', {
+      const presignRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/files/presigned-upload`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
       });
 
       // 6. 프로필 이미지 등록 요청 (서버에 반영)
-      const updateRes = await fetch('${process.env.NEXT_PUBLIC_API_URL}/api/users/profile-image', {
+      const updateRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/profile-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
