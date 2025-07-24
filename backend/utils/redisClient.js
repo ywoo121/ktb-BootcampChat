@@ -117,18 +117,18 @@ class RedisClient {
 
         this.client = new Redis.Cluster(redisHosts, {
           redisOptions: {
-            connectTimeout: 2000,
-            commandTimeout: 2000,
-            retryDelayOnFailover: 100,
-            maxRetriesPerRequest: 2,
+            connectTimeout: 10000,     // 10초로 증가
+            commandTimeout: 10000,     // 10초로 증가
+            retryDelayOnFailover: 500,
+            maxRetriesPerRequest: 5,   // 재시도 횟수 증가
           },
           enableOfflineQueue: false,
-          retryDelayOnFailover: 100,
-          retryDelayOnClusterDown: 300,
-          maxRetriesPerRequest: 2,
+          retryDelayOnFailover: 500,
+          retryDelayOnClusterDown: 1000,
+          maxRetriesPerRequest: 5,
           scaleReads: 'slave',
-          clusterRetryDelayOnClusterDown: 300,
-          clusterRetryDelayOnFailover: 100,
+          clusterRetryDelayOnClusterDown: 1000,
+          clusterRetryDelayOnFailover: 500,
           lazyConnect: true
         });
 
@@ -158,7 +158,7 @@ class RedisClient {
 
         // 연결 테스트 (타임아웃 적용)
         const connectTimeout = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Connection timeout')), 3000);
+          setTimeout(() => reject(new Error('Connection timeout')), 15000); // 15초로 증가
         });
 
         await Promise.race([

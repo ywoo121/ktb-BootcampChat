@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const s3UploadService = require('../../services/s3UploadService');
-const ragService = require('../../services/ragService');
 const File = require('../../models/File');
 const path = require('path');
+const auth = require('../../middleware/auth');
 
 /**
  * 파일 업로드 라우터
  */
-router.post('/upload', s3UploadService.multerConfig.single('file'), async (req, res) => {
+router.post('/upload', auth, s3UploadService.multerConfig.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: '파일이 없습니다.' });
@@ -34,7 +34,7 @@ router.post('/upload', s3UploadService.multerConfig.single('file'), async (req, 
 
     // 3. MongoDB에 파일 정보 저장
     const fileDocument = await File.create({
-      filename: filename, // S3 키에서 추출한 파일명 사용
+      filename: filename,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
@@ -47,27 +47,7 @@ router.post('/upload', s3UploadService.multerConfig.single('file'), async (req, 
 
     console.log('DB 저장 완료:', fileDocument._id);
 
-    // 4. RAG 처리 (텍스트 파일인 경우만)
-    let ragProcessed = false;
-    const textTypes = [
-      'text/plain', 'application/pdf', 'application/json',
-      'text/csv', 'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ];
-
-    if (textTypes.includes(req.file.mimetype)) {
-      try {
-        console.log('RAG 처리 시작...');
-        await ragService.processS3FileForRAG(fileDocument);
-        ragProcessed = true;
-        console.log('RAG 처리 완료');
-      } catch (ragError) {
-        console.error('RAG 처리 실패:', ragError);
-        // RAG 실패해도 파일 업로드는 성공으로 처리
-      }
-    }
-
-    // 5. 응답
+    // 4. 응답
     res.json({
       success: true,
       message: '파일 업로드 완료',
@@ -79,7 +59,6 @@ router.post('/upload', s3UploadService.multerConfig.single('file'), async (req, 
         size: fileDocument.size,
         uploadDate: fileDocument.uploadDate,
         s3Key: fileDocument.s3Key,
-        ragProcessed: ragProcessed,
         previewable: fileDocument.isPreviewable()
       }
     });
@@ -96,7 +75,7 @@ router.post('/upload', s3UploadService.multerConfig.single('file'), async (req, 
 /**
  * 대용량 파일 업로드 (멀티파트)
  */
-router.post('/upload/large', s3UploadService.multerConfig.single('file'), async (req, res) => {
+router.post('/upload/large', auth, s3UploadService.multerConfig.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: '파일이 없습니다.' });
@@ -134,21 +113,6 @@ router.post('/upload/large', s3UploadService.multerConfig.single('file'), async 
       etag: s3Result.etag
     });
 
-    // 대용량 파일 RAG 처리
-    let ragProcessed = false;
-    const textTypes = ['text/plain', 'application/pdf'];
-
-    if (textTypes.includes(req.file.mimetype)) {
-      try {
-        console.log('대용량 파일 RAG 처리 시작...');
-        await ragService.processLargeS3FileForRAG(fileDocument);
-        ragProcessed = true;
-        console.log('대용량 파일 RAG 처리 완료');
-      } catch (ragError) {
-        console.error('RAG 처리 실패:', ragError);
-      }
-    }
-
     res.json({
       success: true,
       message: '대용량 파일 업로드 완료',
@@ -160,7 +124,6 @@ router.post('/upload/large', s3UploadService.multerConfig.single('file'), async 
         size: fileDocument.size,
         uploadDate: fileDocument.uploadDate,
         s3Key: fileDocument.s3Key,
-        ragProcessed: ragProcessed,
         multipartUsed: req.file.size >= MULTIPART_THRESHOLD
       }
     });
@@ -177,7 +140,7 @@ router.post('/upload/large', s3UploadService.multerConfig.single('file'), async 
 /**
  * 파일 다운로드 (서명된 URL)
  */
-router.get('/download/:fileId', async (req, res) => {
+router.get('/download/:fileId', auth, async (req, res) => {
   try {
     const fileDocument = await File.findById(req.params.fileId);
     
@@ -213,7 +176,7 @@ router.get('/download/:fileId', async (req, res) => {
 /**
  * 파일 삭제
  */
-router.delete('/:fileId', async (req, res) => {
+router.delete('/:fileId', auth, async (req, res) => {
   try {
     const fileDocument = await File.findById(req.params.fileId);
     
@@ -251,7 +214,7 @@ router.delete('/:fileId', async (req, res) => {
 /**
  * 사용자 파일 목록 조회
  */
-router.get('/list', async (req, res) => {
+router.get('/list', auth, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
