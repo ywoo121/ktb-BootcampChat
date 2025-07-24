@@ -1,5 +1,5 @@
 // backend/utils/redisClient.js
-const Redis = require('redis');
+const Redis = require('ioredis');
 const { redisHost, redisPort } = require('../config/keys');
 
 class MockRedisClient {
@@ -85,42 +85,88 @@ class RedisClient {
     try {
       console.log('Connecting to Redis...');
 
-      this.client = Redis.createClient({
-        url: `redis://${redisHost}:${redisPort}`,
-        socket: {
+      // Redis Cluster 설정 체크
+      if (redisHost.includes(',')) {
+        // Redis Cluster 모드
+        console.log('Detected Redis Cluster configuration');
+        
+        const redisHosts = redisHost.split(',').map(host => {
+          return { host: host.trim(), port: parseInt(redisPort) };
+        });
+        
+        console.log('Redis Cluster hosts:', redisHosts);
+        
+        this.client = new Redis.Cluster(redisHosts, {
+          redisOptions: {
+            connectTimeout: 5000,
+            commandTimeout: 5000,
+            retryDelayOnFailover: 100,
+            maxRetriesPerRequest: 3,
+          },
+          enableOfflineQueue: true,
+          retryDelayOnFailover: 100,
+          retryDelayOnClusterDown: 300,
+          maxRetriesPerRequest: 3,
+          scaleReads: 'slave', // 읽기는 Replica에서
+        });
+
+        this.client.on('connect', () => {
+          console.log('Redis Cluster Connected');
+          this.isConnected = true;
+          this.connectionAttempts = 0;
+          this.useMock = false;
+        });
+
+        this.client.on('error', (err) => {
+          console.error('Redis Cluster Error:', err.message);
+          if (!this.useMock && this.connectionAttempts >= this.maxRetries) {
+            console.log('Max Redis reconnection attempts reached, switching to in-memory mock');
+            this.client = new MockRedisClient();
+            this.isConnected = true;
+            this.useMock = true;
+          }
+        });
+
+        this.client.on('node error', (err, node) => {
+          console.error(`Redis Node Error on ${node.options.host}:${node.options.port}:`, err.message);
+        });
+
+        // 연결 테스트
+        await this.client.ping();
+        console.log('Redis Cluster ping successful');
+        
+      } else {
+        // 단일 Redis 모드 (기존 방식)
+        console.log('Using single Redis instance');
+        
+        this.client = new Redis({
           host: redisHost,
           port: redisPort,
           connectTimeout: 5000,
-          reconnectStrategy: (retries) => {
-            if (retries > this.maxRetries) {
-              console.log('Max Redis reconnection attempts reached, switching to in-memory mock');
-              this.client = new MockRedisClient();
-              this.isConnected = true;
-              this.useMock = true;
-              return false;
-            }
-            return Math.min(retries * 50, 2000);
-          }
-        }
-      });
+          retryDelayOnFailover: 100,
+          maxRetriesPerRequest: 3,
+        });
 
-      this.client.on('connect', () => {
-        console.log('Redis Client Connected');
-        this.isConnected = true;
-        this.connectionAttempts = 0;
-      });
-
-      this.client.on('error', (err) => {
-        console.error('Redis Client Error:', err.message);
-        if (!this.useMock) {
-          console.log('Switching to in-memory mock Redis');
-          this.client = new MockRedisClient();
+        this.client.on('connect', () => {
+          console.log('Redis Client Connected');
           this.isConnected = true;
-          this.useMock = true;
-        }
-      });
+          this.connectionAttempts = 0;
+        });
 
-      await this.client.connect();
+        this.client.on('error', (err) => {
+          console.error('Redis Client Error:', err.message);
+          this.connectionAttempts++;
+          
+          if (this.connectionAttempts >= this.maxRetries && !this.useMock) {
+            console.log('Switching to in-memory mock Redis');
+            this.client = new MockRedisClient();
+            this.isConnected = true;
+            this.useMock = true;
+          }
+        });
+      }
+
+      this.isConnected = true;
       return this.client;
 
     } catch (error) {
