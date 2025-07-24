@@ -462,6 +462,7 @@ module.exports = function(io) {
         const aiMentions = extractAIMentions(content);
         let message;
         let triggerEmojiRain = false; // <-- 여기 선언이 핵심!!
+        let emojiPayload = null;
 
         logDebug('message received', {
           type,
@@ -504,9 +505,16 @@ module.exports = function(io) {
             if (!messageContent) return;
 
             let finalContent = messageContent;
+
             if (messageContent === '/폭탄' || messageContent === '/이모지폭격') {
               triggerEmojiRain = true;
               finalContent = '💣';
+              emojiPayload = ['🎉', '🎊', '💥', '💣', '🔥'];
+            } else if (messageContent === '/구름') {
+              triggerEmojiRain = true;
+              finalContent = '☁️';
+              emojiPayload = ['☁️', '🌧️', '🌦️', '🌈', '🌬️'];
+
             }
 
             message = new Message({
@@ -534,7 +542,8 @@ module.exports = function(io) {
 
         if (triggerEmojiRain) {
           console.log('🌧️ emojiRain 전송 to', room);
-          io.to(room).emit('emojiRain');
+          console.log('emojiPayload', emojiPayload);
+          io.to(room).emit('emojiRain', { emojis: emojiPayload });
         }
 
         if (aiMentions.length > 0) {

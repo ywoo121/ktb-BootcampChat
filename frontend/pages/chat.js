@@ -56,33 +56,27 @@ const ChatPage = () => {
 
   // 이모지 레인 상태
   const [emojiRainActive, setEmojiRainActive] = useState(false);
+  const [emojiEmojis, setEmojiEmojis] = useState([]);
+
 
   useEffect(() => {
   const socket = socketRef.current;
-  if (!socket) {
-    console.log('소켓이 없음');
-    return;
-  }
+  if (!socket) return; // null이면 리턴해서 에러 방지
 
-  console.log('이모지 레인 이벤트 리스너 등록');
-
-  const handleEmojiRain = () => {
-    console.log('이모지 레인 이벤트 수신!');
+  const handleEmojiRain = (payload) => {
+    console.log('🎉 emojiRain 이벤트 수신됨!', payload);
+    const emojis = payload?.emojis || ['💣'];
+    setEmojiEmojis(emojis);
     setEmojiRainActive(true);
-
-    setTimeout(() => {
-      console.log('이모지 레인 종료');
-      setEmojiRainActive(false);
-    }, 4000);
+    setTimeout(() => setEmojiRainActive(false), 4000);
   };
 
   socket.on('emojiRain', handleEmojiRain);
 
   return () => {
-    console.log('이모지 레인 이벤트 리스너 제거');
     socket.off('emojiRain', handleEmojiRain);
   };
-}, [connected]); 
+}, [connected]);
 
   const renderParticipants = () => {
     if (!room?.participants) return null;
@@ -134,7 +128,7 @@ const ChatPage = () => {
 
   const renderLoadingState = () => (
     <div className="chat-container">
-      {emojiRainActive && <EmojiRain />}
+      {emojiRainActive && <EmojiRain emojis={emojiEmojis} />}
       <Card.Root className="chat-room-card">
         <Card.Body style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Box style={{ textAlign: 'center', marginTop: 'var(--vapor-space-500)' }}>
@@ -151,7 +145,7 @@ const ChatPage = () => {
 
   const renderErrorState = () => (
     <div className="chat-container">
-      {emojiRainActive && <EmojiRain />}
+      {emojiRainActive && <EmojiRain emojis={emojiEmojis} />}
       <Card.Root className="chat-room-card">
         <Card.Body style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <Box style={{ marginBottom: 'var(--vapor-space-400)' }}>
@@ -274,8 +268,8 @@ const ChatPage = () => {
   return (
     <div className="chat-container">
       {/* 이모지 레인 컴포넌트 */}
-      {emojiRainActive && <EmojiRain />}
-      
+      {emojiRainActive && <EmojiRain emojis={emojiEmojis} />}
+
       <Card.Root className="chat-room-card">
         <Card.Header className="chat-room-header">
           <Flex justify="space-between" align="center">

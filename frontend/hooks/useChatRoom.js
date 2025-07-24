@@ -344,11 +344,14 @@ export const useChatRoom = () => {
 
 
     // emojiRain 이벤트 처리
-    socketRef.current.on('emojiRain', () => {
+    socketRef.current.on('emojiRain', (payload) => {
       if (!mountedRef.current) return;
-      console.log('🎉 emojiRain 이벤트 수신됨!');
+      console.log('🎉 emojiRain 이벤트 수신됨!', payload);
+
+      const emojis = payload?.emojis || ['💣'];
+
       if (typeof onEmojiRain === 'function') {
-        onEmojiRain(); 
+        onEmojiRain(emojis);  // 콜백으로 이모지 배열 전달
       }
     });
 
