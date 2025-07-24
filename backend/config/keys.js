@@ -13,5 +13,8 @@ module.exports = {
   redisHost: process.env.REDIS_HOST,
   redisPort: process.env.REDIS_PORT,
   openaiApiKey: process.env.OPENAI_API_KEY,
-  vectorDbEndpoint: process.env.VECTOR_DB_ENDPOINT,
+  pineconeKey: process.env.PINECONE_API_KEY,
+  pineconeEnv: process.env.PINECONE_ENV,
+  pineconeIndex: process.env.PINECONE_INDEX,
+  pineconeIndex2: process.env.PINECONE_INDEX2,
 };
