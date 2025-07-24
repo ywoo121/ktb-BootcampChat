@@ -1,7 +1,7 @@
 import React from 'react';
-import { 
-  AlertCircle, 
-  WifiOff 
+import {
+  AlertCircle,
+  WifiOff
 } from 'lucide-react';
 import { Button, Text, Callout, Card, Badge, Avatar } from '@vapor-ui/core';
 import { Flex, Box, HStack } from '../components/ui/Layout';
@@ -64,13 +64,13 @@ const ChatPage = () => {
           {participants.slice(0, maxVisibleAvatars).map(participant => {
             const backgroundColor = generateColorFromEmail(participant.email);
             const color = getContrastTextColor(backgroundColor);
-            
+
             return (
               <Avatar.Root
                 key={participant._id}
                 size="md"
-                style={{ 
-                  backgroundColor, 
+                style={{
+                  backgroundColor,
                   color,
                   flexShrink: 0
                 }}
@@ -84,7 +84,7 @@ const ChatPage = () => {
           {remainingCount > 0 && (
             <Avatar.Root
               size="md"
-              style={{ 
+              style={{
                 backgroundColor: 'var(--vapor-color-secondary)',
                 color: 'white',
                 flexShrink: 0
@@ -241,53 +241,59 @@ const ChatPage = () => {
     <div className="chat-container">
       <Card.Root className="chat-room-card">
         <Card.Header className="chat-room-header">
-          <Flex justify="space-between" align="center">
-            <Flex align="center" gap="300">
-              <Text typography="heading4" style={{ fontWeight: 'bold' }} className="chat-room-title">
-                {room.name}
-              </Text>
-              {renderParticipants()}
+          <div>
+            <Flex justify="space-between" align="center">
+              <Flex align="center" gap="300">
+                <Text typography="heading4" style={{ fontWeight: 'bold' }} className="chat-room-title">
+                  {room.name}
+                </Text>
+                {renderParticipants()}
+              </Flex>
+              <Badge color={status.color === 'success' ? 'success' : status.color === 'warning' ? 'warning' : 'danger'}>
+                {status.label}
+              </Badge>
             </Flex>
-            <Badge color={status.color === 'success' ? 'success' : status.color === 'warning' ? 'warning' : 'danger'}>
-              {status.label}
-            </Badge>
-          </Flex>
+          </div>
         </Card.Header>
 
         <Card.Body className="chat-room-body">
-          <div className="chat-messages">
-            {renderContent()}
+          <div>
+            <div className="chat-messages">
+              {renderContent()}
+            </div>
           </div>
         </Card.Body>
 
         <Card.Footer className="chat-room-footer">
-          <ChatInput 
-            message={message}
-            onMessageChange={handleMessageChange}
-            onSubmit={handleMessageSubmit}
-            onEmojiToggle={handleEmojiToggle}
-            fileInputRef={fileInputRef}
-            messageInputRef={messageInputRef}
-            filePreview={filePreview}
-            disabled={connectionStatus !== 'connected'}
-            uploading={false}
-            showEmojiPicker={showEmojiPicker}
-            showMentionList={showMentionList}
-            mentionFilter={mentionFilter}
-            mentionIndex={mentionIndex}
-            getFilteredParticipants={getFilteredParticipants}
-            setMessage={setMessage}
-            setShowEmojiPicker={setShowEmojiPicker}
-            setShowMentionList={setShowMentionList}
-            setMentionFilter={setMentionFilter}
-            setMentionIndex={setMentionIndex}
-            room={room} // room 객체 전달
-            onMentionSelect={(user) => {
-              insertMention(user);
-              setShowMentionList(false);
-            }}
-            onFileRemove={removeFilePreview}
-          />
+          <div>
+            <ChatInput
+              message={message}
+              onMessageChange={handleMessageChange}
+              onSubmit={handleMessageSubmit}
+              onEmojiToggle={handleEmojiToggle}
+              fileInputRef={fileInputRef}
+              messageInputRef={messageInputRef}
+              filePreview={filePreview}
+              disabled={connectionStatus !== 'connected'}
+              uploading={false}
+              showEmojiPicker={showEmojiPicker}
+              showMentionList={showMentionList}
+              mentionFilter={mentionFilter}
+              mentionIndex={mentionIndex}
+              getFilteredParticipants={getFilteredParticipants}
+              setMessage={setMessage}
+              setShowEmojiPicker={setShowEmojiPicker}
+              setShowMentionList={setShowMentionList}
+              setMentionFilter={setMentionFilter}
+              setMentionIndex={setMentionIndex}
+              room={room} // room 객체 전달
+              onMentionSelect={(user) => {
+                insertMention(user);
+                setShowMentionList(false);
+              }}
+              onFileRemove={removeFilePreview}
+            />
+          </div>
         </Card.Footer>
       </Card.Root>
     </div>

@@ -7,6 +7,8 @@ const authRoutes = require('./api/auth');
 const userRoutes = require('./api/users');
 const { router: roomsRouter } = require('./api/rooms');
 const fileRoutes = require('./api/files');
+const audioRoutes = require('./api/audio');
+
 console.log('Route modules loaded successfully');
 
 // API documentation route
@@ -29,6 +31,7 @@ router.get('/', (req, res) => {
       users: '/users',
       rooms: '/rooms',
       files: '/files',
+      audio: '/audio',
       ai: '/ai'
     }
   });
@@ -40,6 +43,8 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/rooms', roomsRouter);  // roomsRouter로 변경
 router.use('/files', fileRoutes);
+router.use('/audio', audioRoutes);
+
 console.log('Routes mounted: /auth, /users, /rooms, /files');
 
 module.exports = router;

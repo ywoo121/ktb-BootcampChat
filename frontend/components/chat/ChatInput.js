@@ -10,6 +10,7 @@ import MarkdownToolbar from './MarkdownToolbar';
 import EmojiPicker from './EmojiPicker';
 import MentionDropdown from './MentionDropdown';
 import FilePreview from './FilePreview';
+import VoiceRecorder from './VoiceRecorder';
 import fileService from '../../services/fileService';
 
 const ChatInput = forwardRef(({
@@ -31,7 +32,8 @@ const ChatInput = forwardRef(({
   setShowMentionList = () => { },
   setMentionFilter = () => { },
   setMentionIndex = () => { },
-  room = null // room prop 추가
+  room = null, // room prop 추가
+  socketRef = null // socket reference for voice features
 }, ref) => {
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
@@ -44,6 +46,50 @@ const ChatInput = forwardRef(({
   const [uploadError, setUploadError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+  const [voiceError, setVoiceError] = useState(null);
+
+  // Handle voice transcription
+  const handleVoiceTranscription = useCallback((transcription, isPartial = false) => {
+    if (!transcription || !transcription.trim()) return;
+
+    const cleanTranscription = transcription.trim();
+    
+    if (isPartial) {
+      // For partial transcriptions, we could show a preview
+      console.log('Partial transcription:', cleanTranscription);
+      return;
+    }
+
+    // For complete transcriptions, either replace current message or append
+    if (message.trim()) {
+      // If there's already text, append with a space
+      setMessage(prevMessage => `${prevMessage} ${cleanTranscription}`);
+    } else {
+      // If no text, replace entirely
+      setMessage(cleanTranscription);
+    }
+
+    // Focus the input after transcription
+    setTimeout(() => {
+      if (messageInputRef?.current) {
+        messageInputRef.current.focus();
+        // Move cursor to end
+        const length = messageInputRef.current.value.length;
+        messageInputRef.current.setSelectionRange(length, length);
+      }
+    }, 100);
+  }, [message, setMessage, messageInputRef]);
+
+  // Handle voice errors
+  const handleVoiceError = useCallback((error) => {
+    console.error('Voice input error:', error);
+    setVoiceError(error);
+    
+    // Clear error after 5 seconds
+    setTimeout(() => {
+      setVoiceError(null);
+    }, 5000);
+  }, []);
 
   const handleFileValidationAndPreview = useCallback(async (file) => {
     if (!file) return;
@@ -499,51 +545,98 @@ const ChatInput = forwardRef(({
             />
           </div>
 
-          <div className="chat-input-main" style={{ position: 'relative' }}>
-            <textarea
-              ref={messageInputRef}
-              value={message}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder={isDragging ? "파일을 여기에 놓아주세요." : "메시지를 입력하세요... (@를 입력하여 멘션, Shift + Enter로 줄바꿈)"}
-              disabled={isDisabled}
-              rows={1}
-              autoComplete="off"
-              spellCheck="true"
-              className="chat-input-textarea"
-              style={{
-                minHeight: '40px',
-                maxHeight: `${parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5 * 10}px`,
-                resize: 'none',
-                width: '100%',
-                border: '1px solid var(--vapor-color-border)',
-                borderRadius: 'var(--vapor-radius-md)',
-                padding: 'var(--vapor-space-150)',
-                paddingRight: '120px', // Space for send button
-                backgroundColor: 'var(--vapor-color-normal)',
-                color: 'var(--vapor-color-text-primary)',
-                fontSize: 'var(--vapor-font-size-100)',
-                lineHeight: '1.5',
-                transition: 'all 0.2s ease'
-              }}
-            />
-            <Button
-              color="primary"
-              size="md"
-              onClick={handleSubmit}
-              disabled={isDisabled || (!message.trim() && files.length === 0)}
-              aria-label="메시지 보내기"
-              style={{
-                position: 'absolute',
-                bottom: '8px',
-                right: '8px',
-                padding: '8px 16px'
-              }}
-            >
-              <SendIcon size={20} />
-              <span style={{ marginLeft: 'var(--vapor-space-100)' }}>보내기</span>
-            </Button>
+          <div className="chat-input-main" style={{ position: 'relative', display: 'flex', alignItems: 'stretch', gap: '8px' }}>
+            {/* Voice Recorder - positioned on the left */}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <VoiceRecorder
+                onTranscription={handleVoiceTranscription}
+                onError={handleVoiceError}
+                socketRef={socketRef}
+                disabled={isDisabled}
+                size="md"
+              />
+            </div>
+
+            {/* Text input area */}
+            <div style={{ position: 'relative', flex: 1 }}>
+              <textarea
+                ref={messageInputRef}
+                value={message}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder={isDragging ? "파일을 여기에 놓아주세요." : "메시지를 입력하거나 🎤 버튼으로 음성 입력... (@를 입력하여 멘션, Shift + Enter로 줄바꿈)"}
+                disabled={isDisabled}
+                rows={1}
+                autoComplete="off"
+                spellCheck="true"
+                className="chat-input-textarea"
+                style={{
+                  minHeight: '40px',
+                  maxHeight: `${parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5 * 10}px`,
+                  resize: 'none',
+                  width: '100%',
+                  border: '1px solid var(--vapor-color-border)',
+                  borderRadius: 'var(--vapor-radius-md)',
+                  padding: 'var(--vapor-space-150)',
+                  paddingRight: '120px', // Space for send button
+                  backgroundColor: 'var(--vapor-color-normal)',
+                  color: 'var(--vapor-color-text-primary)',
+                  fontSize: 'var(--vapor-font-size-100)',
+                  lineHeight: '1.5',
+                  transition: 'all 0.2s ease'
+                }}
+              />
+              <Button
+                color="primary"
+                size="md"
+                onClick={handleSubmit}
+                disabled={isDisabled || (!message.trim() && files.length === 0)}
+                aria-label="메시지 보내기"
+                style={{
+                  position: 'absolute',
+                  bottom: '8px',
+                  right: '8px',
+                  padding: '8px 16px'
+                }}
+              >
+                <SendIcon size={20} />
+                <span style={{ marginLeft: 'var(--vapor-space-100)' }}>보내기</span>
+              </Button>
+            </div>
           </div>
+
+          {/* Voice Error Display */}
+          {voiceError && (
+            <div style={{
+              backgroundColor: '#fee2e2',
+              border: '1px solid #fecaca',
+              borderRadius: 'var(--vapor-radius-md)',
+              padding: 'var(--vapor-space-100)',
+              marginTop: 'var(--vapor-space-100)',
+              color: '#dc2626',
+              fontSize: 'var(--vapor-font-size-75)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--vapor-space-75)'
+            }}>
+              <span>⚠️</span>
+              <span>{voiceError}</span>
+              <button
+                onClick={() => setVoiceError(null)}
+                style={{
+                  marginLeft: 'auto',
+                  background: 'none',
+                  border: 'none',
+                  color: '#dc2626',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+                aria-label="오류 메시지 닫기"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           <div className="chat-input-actions">
             {showEmojiPicker && (
