@@ -344,9 +344,13 @@ const ChatInput = forwardRef(({
       }
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (e.nativeEvent.isComposing) {
+        return;
+      }
       if (message.trim() || files.length > 0) {
         handleSubmit(e);
       }
+
     } else if (e.key === 'Escape' && showEmojiPicker) {
       setShowEmojiPicker(false);
     }
