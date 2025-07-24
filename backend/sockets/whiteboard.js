@@ -212,7 +212,7 @@ module.exports = function (io) {
         }
       } catch (error) {
         console.error("❌ Drawing save error:", error);
-        socket.emit("error", { message: "그리기 저장에 실패했습니다." });
+        //socket.emit("error", { message: "그리기 저장에 실패했습니다." });
       }
     });
 
