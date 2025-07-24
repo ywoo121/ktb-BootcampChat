@@ -66,6 +66,7 @@ class MockRedisClient {
     this.store.set(key, { value: arr, expires: null });
     return arr.length;
   }
+  async lpush(key, value) { return this.lPush(key, value); }
 }
 
 class RedisClient {
@@ -264,6 +265,7 @@ class RedisClient {
     }
     return this.client.lPush(key, value);
   }
+  async lpush(key, value) { return this.lPush(key, value); }
 }
 
 const redisClient = new RedisClient();
@@ -322,7 +324,7 @@ module.exports = {
   setJson,
   del: (...args) => redisClient.del(...args),
   expire: (...args) => redisClient.expire(...args),
-  lpush: (...args) => redisClient.lPush(...args),
+  lpush: (...args) => redisClient.lpush(...args),
   createUser,
   getUserById,
   getUserByEmail,
