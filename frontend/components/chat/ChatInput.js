@@ -11,6 +11,7 @@ import EmojiPicker from './EmojiPicker';
 import MentionDropdown from './MentionDropdown';
 import FilePreview from './FilePreview';
 import fileService from '../../services/fileService';
+import socket from '../../services/socket';
 
 const ChatInput = forwardRef(({
   message = '',
@@ -44,7 +45,8 @@ const ChatInput = forwardRef(({
   const [uploadError, setUploadError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
-
+  const typingTimeoutRef = useRef(null);
+  
   const handleFileValidationAndPreview = useCallback(async (file) => {
     if (!file) return;
 
@@ -277,6 +279,16 @@ const ChatInput = forwardRef(({
     }
 
     onMessageChange(e);
+
+    // 타이핑 이벤트 emit
+    socket.emit('typing');
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('stopTyping');
+    }, 1000); // 1초 동안 입력 없으면 stop
 
     if (lastAtSymbol !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtSymbol + 1);
