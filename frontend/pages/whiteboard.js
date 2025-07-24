@@ -483,31 +483,6 @@ function WhiteboardPage() {
               onMouseLeave={stopDrawing}
             />
           </Box>
-
-          {/* 연결 상태 및 저장 정보 */}
-          <Box
-            style={{
-              padding: "10px",
-              backgroundColor: connected ? "#e8f5e8" : "#ffe8e8",
-              borderRadius: "6px",
-              border: `2px solid ${connected ? "#4CAF50" : "#f44336"}`,
-            }}
-          >
-            <Flex justify="space-between" align="center">
-              <Text typography="body3">
-                {connected ? "✅ 실시간 동기화 활성" : "❌ 연결 끊어짐"} • 모든
-                그림이 자동으로 저장됩니다
-              </Text>
-              {process.env.NODE_ENV === "development" && (
-                <Text
-                  typography="body3"
-                  style={{ fontFamily: "monospace", fontSize: "11px" }}
-                >
-                  {socketRef.current?.id || "N/A"} | Room: {router.query.room}
-                </Text>
-              )}
-            </Flex>
-          </Box>
         </Card.Body>
       </Card.Root>
     </div>
