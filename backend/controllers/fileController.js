@@ -11,6 +11,7 @@ const redisClient = require('../utils/redisClient');
 const { uploadFileToS3 } = require('../services/s3Service');
 const { S3Client, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { s3Bucket, s3Region, s3AccessKeyId, s3SecretAccessKey } = require('../config/keys');
+const { v4: uuidv4 } = require('uuid');
 
 const fsPromises = {
   writeFile: promisify(fs.writeFile),
@@ -120,7 +121,9 @@ exports.uploadFile = async (req, res) => {
     await fsPromises.unlink(currentPath);
 
     // 3. 메타데이터 Redis 저장
+    const fileId = uuidv4();
     const fileMeta = {
+      id: fileId,
       filename: safeFilename,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
