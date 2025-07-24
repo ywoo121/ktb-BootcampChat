@@ -146,6 +146,8 @@ class FileService {
 
       this.activeUploads.delete(file.name);
 
+      console.log('File upload API response:', response.data);
+
       if (!response.data || !response.data.success) {
         return {
           success: false,
@@ -156,12 +158,10 @@ class FileService {
       const fileData = response.data.file;
       return {
         success: true,
-        data: {
-          ...response.data,
-          file: {
-            ...fileData,
-            url: this.getFileUrl(fileData.filename, true)
-          }
+        data: response.data,
+        file: {
+          ...fileData,
+          url: this.getFileUrl(fileData.filename, true)
         }
       };
 

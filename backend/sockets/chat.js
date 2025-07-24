@@ -450,6 +450,10 @@ module.exports = function(io) {
           throw new Error('메시지 데이터가 없습니다.');
         }
 
+        console.log('=== Received message data ===');
+        console.log('Full messageData:', JSON.stringify(messageData, null, 2));
+        console.log('=== End of message data ===');
+
         const { room, type, content, fileData } = messageData;
 
         if (!room) {
@@ -491,12 +495,40 @@ module.exports = function(io) {
         // 메시지 타입별 처리
         switch (type) {
           case 'file':
-            if (!fileData || !fileData._id) {
-              throw new Error('파일 데이터가 올바르지 않습니다.');
+            if (!fileData) {
+              throw new Error('파일 데이터가 없습니다.');
+            }
+
+            // fileData가 객체인지 문자열인지 확인
+            let fileId;
+            if (typeof fileData === 'string') {
+              fileId = fileData;
+            } else if (fileData._id) {
+              fileId = fileData._id;
+            } else if (fileData.id) {
+              fileId = fileData.id;
+            } else if (fileData.filename) {
+              // filename으로 파일을 찾는 방법 추가
+              console.log('Trying to find file by filename:', fileData.filename);
+              const fileByName = await File.findOne({
+                filename: fileData.filename,
+                user: socket.user.id
+              }).sort({ uploadDate: -1 }); // 가장 최근 파일
+
+              if (fileByName) {
+                fileId = fileByName._id;
+                console.log('Found file by filename:', fileId);
+              } else {
+                console.error('File not found by filename:', fileData.filename);
+                throw new Error('파일을 찾을 수 없습니다.');
+              }
+            } else {
+              console.error('Invalid fileData structure:', fileData);
+              throw new Error('파일 ID를 찾을 수 없습니다.');
             }
 
             const file = await File.findOne({
-              _id: fileData._id,
+              _id: fileId,
               user: socket.user.id
             });
 

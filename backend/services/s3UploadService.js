@@ -3,10 +3,25 @@ const multer = require('multer');
 const crypto = require('crypto');
 const path = require('path');
 
-const s3 = new AWS.S3({
+// AWS SDK v2 설정 개선
+AWS.config.update({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION
+  region: process.env.AWS_REGION,
+  signatureVersion: 'v4'
+});
+
+const s3 = new AWS.S3({
+  apiVersion: '2006-03-01',
+  region: process.env.AWS_REGION,
+  signatureVersion: 'v4',
+  s3ForcePathStyle: false,
+  // SSL 강제 사용
+  sslEnabled: true,
+  // 타임아웃 설정
+  httpOptions: {
+    timeout: 120000
+  }
 });
 
 /**

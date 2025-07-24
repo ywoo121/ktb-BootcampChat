@@ -3,8 +3,6 @@ import {
   PdfIcon as FileText, 
   ImageIcon as Image, 
   MovieIcon as Film, 
-  CorrectOutlineIcon as CheckCheck, 
-  CorrectOutlineIcon as Check, 
   MusicIcon as Music, 
   ExternalLinkIcon as ExternalLink, 
   DownloadIcon as Download,
@@ -61,10 +59,16 @@ const FileMessage = ({
     const mimetype = msg.file?.mimetype || '';
     const iconProps = { className: "w-5 h-5 flex-shrink-0" };
 
-    if (mimetype.startsWith('image/')) return <Image {...iconProps} color="#00C853" />;
-    if (mimetype.startsWith('video/')) return <Film {...iconProps} color="#2196F3" />;
-    if (mimetype.startsWith('audio/')) return <Music {...iconProps} color="#9C27B0" />;
-    return <FileText {...iconProps} color="#ffffff" />;
+    if (mimetype.startsWith('image/')) {
+      return Image ? <Image {...iconProps} color="#00C853" /> : <span>📷</span>;
+    }
+    if (mimetype.startsWith('video/')) {
+      return Film ? <Film {...iconProps} color="#2196F3" /> : <span>🎥</span>;
+    }
+    if (mimetype.startsWith('audio/')) {
+      return Music ? <Music {...iconProps} color="#9C27B0" /> : <span>🎵</span>;
+    }
+    return FileText ? <FileText {...iconProps} color="#ffffff" /> : <span>📄</span>;
   };
 
   const getDecodedFilename = (encodedFilename) => {
@@ -163,7 +167,7 @@ const FileMessage = ({
       if (!msg?.file?.filename) {
         return (
           <div className="flex items-center justify-center h-full bg-gray-100">
-            <Image className="w-8 h-8 text-gray-400" />
+            {Image ? <Image className="w-8 h-8 text-gray-400" /> : <span className="text-2xl">📷</span>}
           </div>
         );
       }
@@ -202,39 +206,38 @@ const FileMessage = ({
       setError(error.message || '이미지 미리보기를 불러올 수 없습니다.');
       return (
         <div className="flex items-center justify-center h-full bg-gray-100">
-          <Image className="w-8 h-8 text-gray-400" />
+          {Image ? <Image className="w-8 h-8 text-gray-400" /> : <span className="text-2xl">📷</span>}
         </div>
       );
     }
   };
 
+  const renderFileActions = () => (
+    <div className="file-actions mt-2 pt-2 border-t border-gray-200">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleViewInNewTab}
+        title="새 탭에서 보기"
+      >
+        {ExternalLink ? <ExternalLink size={16} /> : <span>🔗</span>}
+        <span>새 탭에서 보기</span>
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleFileDownload}
+        title="다운로드"
+      >
+        {Download ? <Download size={16} /> : <span>⬇️</span>}
+        <span>다운로드</span>
+      </Button>
+    </div>
+  );
   const renderFilePreview = () => {
     const mimetype = msg.file?.mimetype || '';
     const originalname = getDecodedFilename(msg.file?.originalname || 'Unknown File');
     const size = fileService.formatFileSize(msg.file?.size || 0);
-    
-    const FileActions = () => (
-      <div className="file-actions mt-2 pt-2 border-t border-gray-200">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleViewInNewTab}
-          title="새 탭에서 보기"
-        >
-          <ExternalLink size={16} />
-          <span>새 탭에서 보기</span>
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleFileDownload}
-          title="다운로드"
-        >
-          <Download size={16} />
-          <span>다운로드</span>
-        </Button>
-      </div>
-    );
 
     const previewWrapperClass = 
       "overflow-hidden";
@@ -251,7 +254,7 @@ const FileMessage = ({
               <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
-          <FileActions />
+          {renderFileActions()}
         </div>
       );
     }
@@ -274,7 +277,7 @@ const FileMessage = ({
               </video>
             ) : (
               <div className="flex items-center justify-center h-full">
-                <Film className="w-8 h-8 text-gray-400" />
+                {Film ? <Film className="w-8 h-8 text-gray-400" /> : <span className="text-2xl">🎥</span>}
               </div>
             )}
           </div>
@@ -284,7 +287,7 @@ const FileMessage = ({
               <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
-          <FileActions />
+          {renderFileActions()}
         </div>
       );
     }
@@ -312,7 +315,7 @@ const FileMessage = ({
               </audio>
             )}
           </div>
-          <FileActions />
+          {renderFileActions()}
         </div>
       );
     }
@@ -325,7 +328,7 @@ const FileMessage = ({
             <Text typography="body2" as="span">{size}</Text>
           </div>
         </div>
-        <FileActions />
+        {renderFileActions()}
       </div>
     );
   };
@@ -343,7 +346,7 @@ const FileMessage = ({
           <div className="message-content">
             {error && (
               <Callout color="danger" className="mb-3 d-flex align-items-center">
-                <AlertCircle className="w-4 h-4 me-2" />
+                {AlertCircle ? <AlertCircle className="w-4 h-4 me-2" /> : <span>⚠️</span>}
                 <span>{error}</span>
                 <Button
                   variant="ghost"
