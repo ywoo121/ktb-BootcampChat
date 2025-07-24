@@ -424,7 +424,7 @@ class AuthService {
       console.log('Checking server at:', API_URL);
       
       const response = await api.get('/health', {
-        timeout: 3000, // 타임아웃을 3초로 단축
+        timeout: 7000, // 타임아웃을 3초로 단축
         validateStatus: (status) => status < 500 // 5xx 에러만 실제 에러로 처리
       });
       
