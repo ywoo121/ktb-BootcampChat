@@ -21,8 +21,50 @@ exports.createRoom = async (req, res) => {
 // 방 목록
 exports.getRooms = async (req, res) => {
   try {
-    const rooms = await redisClient.listRooms();
-    res.json({ success: true, rooms });
+    // 페이지네이션 및 정렬 파라미터 처리 (기본값 적용)
+    const page = Math.max(0, parseInt(req.query.page) || 0);
+    const pageSize = Math.min(Math.max(1, parseInt(req.query.pageSize) || 10), 50);
+    const sortField = req.query.sortField || 'createdAt';
+    const sortOrder = req.query.sortOrder === 'asc' ? 'asc' : 'desc';
+
+    let rooms = await redisClient.listRooms();
+    const totalCount = rooms.length;
+
+    // 정렬 (createdAt 필드가 없으면 id 기준)
+    rooms = rooms.sort((a, b) => {
+      if (sortField === 'createdAt') {
+        return sortOrder === 'asc'
+          ? new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+          : new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      } else if (sortField === 'name') {
+        return sortOrder === 'asc'
+          ? (a.name || '').localeCompare(b.name || '')
+          : (b.name || '').localeCompare(a.name || '');
+      } else {
+        return 0;
+      }
+    });
+
+    // 페이지네이션
+    const start = page * pageSize;
+    const end = start + pageSize;
+    const pagedRooms = rooms.slice(start, end);
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const hasMore = end < totalCount;
+
+    res.json({
+      success: true,
+      data: pagedRooms,
+      metadata: {
+        total: totalCount,
+        page,
+        pageSize,
+        totalPages,
+        hasMore,
+        currentCount: pagedRooms.length,
+        sort: { field: sortField, order: sortOrder }
+      }
+    });
   } catch (error) {
     console.error('Get rooms error:', error);
     res.status(500).json({ success: false, message: '방 목록 조회 중 오류가 발생했습니다.' });
