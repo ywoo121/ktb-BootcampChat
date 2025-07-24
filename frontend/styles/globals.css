@@ -506,6 +506,14 @@ body {
   margin: var(--vapor-space-050) 0;
 }
 
+.message-content .md-list.md-ul {
+  list-style-type: disc;
+}
+
+.message-content .md-list.md-ol {
+  list-style-type: decimal;
+}
+
 /* Code blocks */
 .message-content pre[class*="language-"] {
   margin: var(--vapor-space-100) 0;
