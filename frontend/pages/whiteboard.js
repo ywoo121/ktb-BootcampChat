@@ -1,10 +1,15 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/router";
-import { Button, Card, Text, Badge } from "@vapor-ui/core";
-import { Flex, Box } from "../components/ui/Layout";
+import { Button, Card, Text, Badge, Avatar } from "@vapor-ui/core";
+import { Flex, Box, HStack } from "../components/ui/Layout";
 import { withAuth } from "../middleware/withAuth";
 import { io } from "socket.io-client";
 import authService from "../services/authService";
+import { UserSquare2 } from "lucide-react";
+import {
+  generateColorFromEmail,
+  getContrastTextColor,
+} from "../utils/colorUtils";
 
 function WhiteboardPage() {
   const router = useRouter();
@@ -19,6 +24,9 @@ function WhiteboardPage() {
   const [users, setUsers] = useState([]);
   const [brushColor, setBrushColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(3);
+  const [isEraserMode, setIsEraserMode] = useState(false); // 지우개 모드 상태
+  const [eraserSize, setEraserSize] = useState(20); // 지우개 크기
+  const [isToolbarOpen, setIsToolbarOpen] = useState(false); // 툴바 열림/닫힘 상태
   const [whiteboardName, setWhiteboardName] = useState("화이트보드");
   const [stats, setStats] = useState({
     totalPaths: 0,
@@ -73,6 +81,11 @@ function WhiteboardPage() {
       // 실시간 그리기 수신
       socketRef.current.on("drawing", (drawingData) => {
         drawOnCanvas(drawingData);
+      });
+
+      // 지우개 이벤트 수신
+      socketRef.current.on("erasing", (eraseData) => {
+        eraseOnCanvas(eraseData);
       });
 
       // 사용자 관련 이벤트
@@ -166,6 +179,22 @@ function WhiteboardPage() {
     }
   }, []);
 
+  // 지우개 캔버스 처리
+  const eraseOnCanvas = useCallback((eraseData) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+
+    if (eraseData.type === "erase") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.beginPath();
+      ctx.arc(eraseData.x, eraseData.y, eraseData.size / 2, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    }
+  }, []);
+
   // 캔버스 지우기
   const clearCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -196,27 +225,45 @@ function WhiteboardPage() {
       const pos = getMousePos(e);
       pathIdRef.current = `${socketRef.current.id}-${Date.now()}`;
 
-      // 로컬 캔버스에 그리기 시작
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
-      ctx.strokeStyle = brushColor;
-      ctx.lineWidth = brushSize;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
 
-      // 서버로 그리기 시작 이벤트 전송
-      socketRef.current.emit("drawing", {
-        type: "start",
-        pathId: pathIdRef.current,
-        x: pos.x,
-        y: pos.y,
-        color: brushColor,
-        size: brushSize,
-      });
+      if (isEraserMode) {
+        // 지우개 모드
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, eraserSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
+
+        // 서버로 지우기 이벤트 전송
+        socketRef.current.emit("erasing", {
+          type: "erase",
+          x: pos.x,
+          y: pos.y,
+          size: eraserSize,
+        });
+      } else {
+        // 그리기 모드
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        ctx.strokeStyle = brushColor;
+        ctx.lineWidth = brushSize;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // 서버로 그리기 시작 이벤트 전송
+        socketRef.current.emit("drawing", {
+          type: "start",
+          pathId: pathIdRef.current,
+          x: pos.x,
+          y: pos.y,
+          color: brushColor,
+          size: brushSize,
+        });
+      }
     },
-    [connected, getMousePos, brushColor, brushSize]
+    [connected, getMousePos, isEraserMode, brushColor, brushSize, eraserSize]
   );
 
   const draw = useCallback(
@@ -224,24 +271,41 @@ function WhiteboardPage() {
       if (!isDrawingRef.current || !socketRef.current || !connected) return;
 
       const pos = getMousePos(e);
-
-      // 로컬 캔버스에 그리기
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
 
-      // 서버로 그리기 이벤트 전송
-      socketRef.current.emit("drawing", {
-        type: "draw",
-        pathId: pathIdRef.current,
-        x: pos.x,
-        y: pos.y,
-        color: brushColor,
-        size: brushSize,
-      });
+      if (isEraserMode) {
+        // 지우개 모드에서 드래그
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, eraserSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
+
+        // 서버로 지우기 이벤트 전송
+        socketRef.current.emit("erasing", {
+          type: "erase",
+          x: pos.x,
+          y: pos.y,
+          size: eraserSize,
+        });
+      } else {
+        // 그리기 모드에서 드래그
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+
+        // 서버로 그리기 이벤트 전송
+        socketRef.current.emit("drawing", {
+          type: "draw",
+          pathId: pathIdRef.current,
+          x: pos.x,
+          y: pos.y,
+          color: brushColor,
+          size: brushSize,
+        });
+      }
     },
-    [connected, getMousePos, brushColor, brushSize]
+    [connected, getMousePos, isEraserMode, brushColor, brushSize, eraserSize]
   );
 
   const stopDrawing = useCallback(() => {
@@ -249,7 +313,7 @@ function WhiteboardPage() {
 
     isDrawingRef.current = false;
 
-    if (socketRef.current && connected && pathIdRef.current) {
+    if (socketRef.current && connected && pathIdRef.current && !isEraserMode) {
       socketRef.current.emit("drawing", {
         type: "end",
         pathId: pathIdRef.current,
@@ -262,7 +326,7 @@ function WhiteboardPage() {
     }
 
     pathIdRef.current = null;
-  }, [connected]);
+  }, [connected, isEraserMode]);
 
   // 캔버스 지우기 핸들러
   const handleClearCanvas = useCallback(() => {
@@ -275,6 +339,11 @@ function WhiteboardPage() {
       socketRef.current.emit("clearCanvas");
     }
   }, [connected]);
+
+  // 지우개 모드 토글
+  const toggleEraserMode = useCallback(() => {
+    setIsEraserMode((prev) => !prev);
+  }, []);
 
   // 컴포넌트 마운트
   useEffect(() => {
@@ -302,6 +371,9 @@ function WhiteboardPage() {
     );
   }
 
+  const maxVisibleAvatars = 5;
+  const remainingCount = Math.max(0, users.length - maxVisibleAvatars);
+
   return (
     <div className="chat-container">
       <Card.Root className="chat-room-card">
@@ -312,7 +384,6 @@ function WhiteboardPage() {
               <Badge color={connected ? "success" : "danger"}>
                 {connected ? "연결됨" : "연결 끊김"}
               </Badge>
-              <Badge color="primary">👥 {users.length}명 참여 중</Badge>
             </Flex>
           </Flex>
           <div
@@ -346,7 +417,46 @@ function WhiteboardPage() {
           }}
         >
           {/* 연결된 사용자 목록 */}
-          {users.length > 0 && (
+          <HStack gap="100" align="center">
+            <Flex gap="100" wrap="wrap">
+              {users.slice(0, 5).map((user, index) => {
+                const backgroundColor = generateColorFromEmail(user.email);
+                const color = getContrastTextColor(backgroundColor);
+
+                return (
+                  <Badge
+                    key={user.socketId || index}
+                    color="primary"
+                    style={{
+                      fontSize: "12px",
+                      backgroundColor: user.color || backgroundColor,
+                      color: color,
+                    }}
+                  >
+                    {user.userName}
+                  </Badge>
+                );
+              })}
+            </Flex>
+
+            {remainingCount > 0 && (
+              <Avatar.Root
+                size="md"
+                style={{
+                  backgroundColor: "var(--vapor-color-secondary)",
+                  color: "white",
+                  flexShrink: 0,
+                }}
+              >
+                <Avatar.Fallback>+{remainingCount}</Avatar.Fallback>
+              </Avatar.Root>
+            )}
+
+            <Text typography="body2" className="ms-3">
+              총 {users.length}명
+            </Text>
+          </HStack>
+          {/* {users.length > 0 && (
             <Box
               style={{
                 padding: "10px",
@@ -373,7 +483,7 @@ function WhiteboardPage() {
                 ))}
               </Flex>
             </Box>
-          )}
+          )} */}
 
           {/* 캔버스 with 플로팅 툴바 */}
           <Box
@@ -387,114 +497,272 @@ function WhiteboardPage() {
               position: "relative",
             }}
           >
-            {/* 플로팅 도구 모음 */}
-            <div
+            {/* 툴바 토글 버튼 */}
+            <button
+              onClick={() => setIsToolbarOpen(!isToolbarOpen)}
               style={{
                 position: "absolute",
                 top: "20px",
-                left: "50%",
-                transform: "translateX(-50%)",
-                zIndex: 10,
+                right: "20px",
+                zIndex: 11,
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
                 backgroundColor: "rgba(255, 255, 255, 0.95)",
                 backdropFilter: "blur(10px)",
                 border: "1px solid rgba(0, 0, 0, 0.1)",
-                borderRadius: "16px",
-                padding: "12px 20px",
-                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: "16px",
-                flexWrap: "wrap",
-                maxWidth: "90%",
+                justifyContent: "center",
+                fontSize: "18px",
+                transition: "all 0.3s ease",
+                transform: isToolbarOpen ? "rotate(45deg)" : "rotate(0deg)",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.transform = isToolbarOpen
+                  ? "rotate(45deg) scale(1.1)"
+                  : "rotate(0deg) scale(1.1)";
+                e.target.style.backgroundColor = "rgba(255, 255, 255, 1)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = isToolbarOpen
+                  ? "rotate(45deg) scale(1)"
+                  : "rotate(0deg) scale(1)";
+                e.target.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
               }}
             >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
-              >
-                <Text
-                  typography="body2"
-                  style={{ fontSize: "12px", color: "#666" }}
-                >
-                  색상:
-                </Text>
-                <input
-                  type="color"
-                  value={brushColor}
-                  onChange={(e) => setBrushColor(e.target.value)}
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    border: "2px solid #ddd",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                  }}
-                />
-              </div>
+              {isToolbarOpen ? "✕" : "🎨"}
+            </button>
 
+            {/* 플로팅 도구 모음 */}
+            {isToolbarOpen && (
               <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                style={{
+                  position: "absolute",
+                  top: "20px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 10,
+                  backgroundColor: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(0, 0, 0, 0.1)",
+                  borderRadius: "16px",
+                  padding: "12px 20px",
+                  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "16px",
+                  flexWrap: "wrap",
+                  maxWidth: "80%",
+                  animation: "slideDown 0.3s ease-out",
+                }}
               >
-                <Text
-                  typography="body2"
-                  style={{ fontSize: "12px", color: "#666" }}
-                >
-                  크기:
-                </Text>
-                <input
-                  type="range"
-                  min="1"
-                  max="20"
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                {/* 모드 선택 버튼 */}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <Button
+                    variant={!isEraserMode ? "solid" : "outline"}
+                    size="sm"
+                    onClick={() => setIsEraserMode(false)}
+                    style={{
+                      fontSize: "11px",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      backgroundColor: !isEraserMode ? "#4A90E2" : "#fff",
+                      color: !isEraserMode ? "#fff" : "#333",
+                      border: "1px solid #4A90E2",
+                    }}
+                  >
+                    ✏️ 그리기
+                  </Button>
+                  <Button
+                    variant={isEraserMode ? "solid" : "outline"}
+                    size="sm"
+                    onClick={toggleEraserMode}
+                    style={{
+                      fontSize: "11px",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      backgroundColor: isEraserMode ? "#FF6B6B" : "#fff",
+                      color: isEraserMode ? "#fff" : "#333",
+                      border: "1px solid #FF6B6B",
+                    }}
+                  >
+                    🧽 지우개
+                  </Button>
+                </div>
+
+                <div
                   style={{
-                    width: "80px",
-                    height: "4px",
-                    borderRadius: "2px",
-                    background: "#ddd",
-                    outline: "none",
-                    cursor: "pointer",
+                    height: "24px",
+                    width: "1px",
+                    backgroundColor: "#ddd",
+                    margin: "0 4px",
                   }}
                 />
-                <Text
-                  typography="body2"
+
+                {!isEraserMode ? (
+                  <>
+                    {/* 펜 색상 선택 */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <Text
+                        typography="body2"
+                        style={{ fontSize: "12px", color: "#666" }}
+                      >
+                        색상:
+                      </Text>
+                      <input
+                        type="color"
+                        value={brushColor}
+                        onChange={(e) => setBrushColor(e.target.value)}
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          border: "2px solid #ddd",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </div>
+
+                    {/* 펜 크기 조절 */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <Text
+                        typography="body2"
+                        style={{ fontSize: "12px", color: "#666" }}
+                      >
+                        크기:
+                      </Text>
+                      <input
+                        type="range"
+                        min="1"
+                        max="20"
+                        value={brushSize}
+                        onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                        style={{
+                          width: "80px",
+                          height: "4px",
+                          borderRadius: "2px",
+                          background: "#ddd",
+                          outline: "none",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <Text
+                        typography="body2"
+                        style={{
+                          fontSize: "11px",
+                          color: "#999",
+                          minWidth: "24px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {brushSize}px
+                      </Text>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* 지우개 크기 조절 */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <Text
+                        typography="body2"
+                        style={{ fontSize: "12px", color: "#666" }}
+                      >
+                        지우개 크기:
+                      </Text>
+                      <input
+                        type="range"
+                        min="10"
+                        max="50"
+                        value={eraserSize}
+                        onChange={(e) =>
+                          setEraserSize(parseInt(e.target.value))
+                        }
+                        style={{
+                          width: "100px",
+                          height: "4px",
+                          borderRadius: "2px",
+                          background: "#ddd",
+                          outline: "none",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <Text
+                        typography="body2"
+                        style={{
+                          fontSize: "11px",
+                          color: "#999",
+                          minWidth: "30px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {eraserSize}px
+                      </Text>
+                    </div>
+                  </>
+                )}
+
+                <div
+                  style={{
+                    height: "24px",
+                    width: "1px",
+                    backgroundColor: "#ddd",
+                    margin: "0 4px",
+                  }}
+                />
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearCanvas}
+                  disabled={!connected}
                   style={{
                     fontSize: "11px",
-                    color: "#999",
-                    minWidth: "24px",
-                    textAlign: "center",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    backgroundColor: connected ? "#fff" : "#f5f5f5",
+                    border: "1px solid #FF6B6B",
+                    color: connected ? "#FF6B6B" : "#999",
+                    cursor: connected ? "pointer" : "not-allowed",
                   }}
                 >
-                  {brushSize}px
-                </Text>
+                  🗑️ 모두 지우기
+                </Button>
               </div>
+            )}
 
-              <div
-                style={{
-                  height: "24px",
-                  width: "1px",
-                  backgroundColor: "#ddd",
-                  margin: "0 4px",
-                }}
-              />
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearCanvas}
-                disabled={!connected}
-                style={{
-                  fontSize: "11px",
-                  padding: "6px 12px",
-                  borderRadius: "8px",
-                  backgroundColor: connected ? "#fff" : "#f5f5f5",
-                  border: "1px solid #ddd",
-                  color: connected ? "#333" : "#999",
-                  cursor: connected ? "pointer" : "not-allowed",
-                }}
-              >
-                🧹 모두 지우기
-              </Button>
-            </div>
+            <style jsx>{`
+              @keyframes slideDown {
+                from {
+                  opacity: 0;
+                  transform: translateX(-50%) translateY(-10px);
+                }
+                to {
+                  opacity: 1;
+                  transform: translateX(-50%) translateY(0);
+                }
+              }
+            `}</style>
 
             <canvas
               ref={canvasRef}
@@ -503,7 +771,17 @@ function WhiteboardPage() {
               style={{
                 width: "100%",
                 height: "100%",
-                cursor: connected ? "crosshair" : "not-allowed",
+                cursor: connected
+                  ? isEraserMode
+                    ? `url("data:image/svg+xml,%3csvg width='${eraserSize}' height='${eraserSize}' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='${
+                        eraserSize / 2
+                      }' cy='${eraserSize / 2}' r='${
+                        eraserSize / 2 - 1
+                      }' stroke='%23FF6B6B' stroke-width='2' fill='rgba(255,107,107,0.2)'/%3e%3c/svg%3e") ${
+                        eraserSize / 2
+                      } ${eraserSize / 2}, auto`
+                    : "crosshair"
+                  : "not-allowed",
                 display: "block",
               }}
               onMouseDown={startDrawing}

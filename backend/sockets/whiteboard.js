@@ -248,6 +248,12 @@ module.exports = function (io) {
       }
     });
 
+    // 지우기 이벤트 처리
+    socket.on("erasing", (eraseData) => {
+      // 같은 방의 다른 사용자들에게 지우기 데이터 브로드캐스트
+      socket.to(socket.currentWhiteboard).emit("erasing", eraseData);
+    });
+
     // 화이트보드 통계 요청
     socket.on("getStats", async () => {
       if (!socket.currentWhiteboard) return;
