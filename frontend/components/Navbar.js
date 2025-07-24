@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import Image from 'next/image';
-import { Button, Avatar, Text } from '@vapor-ui/core';
-import { Flex, HStack, Box, Container } from './ui/Layout';
-import authService from '../services/authService';
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+import Image from "next/image";
+import { Button, Avatar, Text } from "@vapor-ui/core";
+import { Flex, HStack, Box, Container } from "./ui/Layout";
+import authService from "../services/authService";
 
 const Navbar = ({ toggleMode, mode }) => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -25,12 +25,12 @@ const Navbar = ({ toggleMode, mode }) => {
       checkAuth();
     };
 
-    window.addEventListener('authStateChange', handleAuthChange);
-    window.addEventListener('userProfileUpdate', handleProfileUpdate);
+    window.addEventListener("authStateChange", handleAuthChange);
+    window.addEventListener("userProfileUpdate", handleProfileUpdate);
 
     return () => {
-      window.removeEventListener('authStateChange', handleAuthChange);
-      window.removeEventListener('userProfileUpdate', handleProfileUpdate);
+      window.removeEventListener("authStateChange", handleAuthChange);
+      window.removeEventListener("userProfileUpdate", handleProfileUpdate);
     };
   }, []);
 
@@ -45,6 +45,7 @@ const Navbar = ({ toggleMode, mode }) => {
 
   const handleLogout = async () => {
     await authService.logout();
+
     window.dispatchEvent(new Event('authStateChange'));
   };
 
@@ -68,14 +69,16 @@ const Navbar = ({ toggleMode, mode }) => {
         <Flex justify="space-between" align="center">
           {/* Logo */}
           <Box>
-            <div 
-              onClick={() => handleNavigation(currentUser ? '/chat-rooms' : '/')}
-              style={{ cursor: 'pointer' }}
+            <div
+              onClick={() =>
+                handleNavigation(currentUser ? "/chat-rooms" : "/")
+              }
+              style={{ cursor: "pointer" }}
               role="button"
               tabIndex={0}
               onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleNavigation(currentUser ? '/chat-rooms' : '/');
+                if (e.key === "Enter") {
+                  handleNavigation(currentUser ? "/chat-rooms" : "/");
                 }
               }}
             >
@@ -84,7 +87,9 @@ const Navbar = ({ toggleMode, mode }) => {
                 alt="Chat App Logo"
                 width={240}
                 height={81}
-                style={{ objectFit: 'contain' }}
+                style={{ objectFit: "contain" }}
+                draggable="false"
+                onDragStart={(e) => e.preventDefault()}
                 priority
               />
             </div>
@@ -97,14 +102,14 @@ const Navbar = ({ toggleMode, mode }) => {
                 <Button
                   color="primary"
                   size="md"
-                  onClick={() => handleNavigation('/chat-rooms')}
+                  onClick={() => handleNavigation("/chat-rooms")}
                 >
                   채팅방 목록
                 </Button>
                 <Button
                   color="primary"
                   size="md"
-                  onClick={() => handleNavigation('/chat-rooms/new')}
+                  onClick={() => handleNavigation("/chat-rooms/new")}
                 >
                   새 채팅방
                 </Button>
@@ -153,7 +158,7 @@ const Navbar = ({ toggleMode, mode }) => {
                 </>
               )}
 
-              {/* 🌗 모드 토글 버튼 */}
+              {/* 모드 토글 버튼 */}
               <Button
                 size="md"
                 color="secondary"
