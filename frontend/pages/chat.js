@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AlertCircle, 
   WifiOff 
@@ -10,6 +10,7 @@ import { useChatRoom } from '../hooks/useChatRoom';
 import ChatMessages from '../components/chat/ChatMessages';
 import ChatInput from '../components/chat/ChatInput';
 import { generateColorFromEmail, getContrastTextColor } from '../utils/colorUtils';
+import EmojiRain from '../components/EmojiRain';
 
 const ChatPage = () => {
   const {
@@ -49,8 +50,39 @@ const ChatPage = () => {
     handleReactionRemove,
     loadingMessages,
     hasMoreMessages,
-    handleLoadMore
+    handleLoadMore,
+    setupEventListeners
   } = useChatRoom();
+
+  // 이모지 레인 상태
+  const [emojiRainActive, setEmojiRainActive] = useState(false);
+
+  useEffect(() => {
+  const socket = socketRef.current;
+  if (!socket) {
+    console.log('소켓이 없음');
+    return;
+  }
+
+  console.log('이모지 레인 이벤트 리스너 등록');
+
+  const handleEmojiRain = () => {
+    console.log('이모지 레인 이벤트 수신!');
+    setEmojiRainActive(true);
+
+    setTimeout(() => {
+      console.log('이모지 레인 종료');
+      setEmojiRainActive(false);
+    }, 4000);
+  };
+
+  socket.on('emojiRain', handleEmojiRain);
+
+  return () => {
+    console.log('이모지 레인 이벤트 리스너 제거');
+    socket.off('emojiRain', handleEmojiRain);
+  };
+}, [connected]); 
 
   const renderParticipants = () => {
     if (!room?.participants) return null;
@@ -102,6 +134,7 @@ const ChatPage = () => {
 
   const renderLoadingState = () => (
     <div className="chat-container">
+      {emojiRainActive && <EmojiRain />}
       <Card.Root className="chat-room-card">
         <Card.Body style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Box style={{ textAlign: 'center', marginTop: 'var(--vapor-space-500)' }}>
@@ -118,6 +151,7 @@ const ChatPage = () => {
 
   const renderErrorState = () => (
     <div className="chat-container">
+      {emojiRainActive && <EmojiRain />}
       <Card.Root className="chat-room-card">
         <Card.Body style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <Box style={{ marginBottom: 'var(--vapor-space-400)' }}>
@@ -239,6 +273,9 @@ const ChatPage = () => {
 
   return (
     <div className="chat-container">
+      {/* 이모지 레인 컴포넌트 */}
+      {emojiRainActive && <EmojiRain />}
+      
       <Card.Root className="chat-room-card">
         <Card.Header className="chat-room-header">
           <Flex justify="space-between" align="center">

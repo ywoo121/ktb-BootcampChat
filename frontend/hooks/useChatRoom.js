@@ -342,6 +342,16 @@ export const useChatRoom = () => {
       }
     });
 
+
+    // emojiRain 이벤트 처리
+    socketRef.current.on('emojiRain', () => {
+      if (!mountedRef.current) return;
+      console.log('🎉 emojiRain 이벤트 수신됨!');
+      if (typeof onEmojiRain === 'function') {
+        onEmojiRain(); 
+      }
+    });
+
     // 이전 메시지 이벤트
     socketRef.current.on('previousMessages', (response) => {
       if (!mountedRef.current || messageProcessingRef.current) return;
