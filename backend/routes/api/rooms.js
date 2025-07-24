@@ -184,7 +184,7 @@ router.get('/', [limiter, auth], async (req, res) => {
 // 채팅방 생성
 router.post('/', auth, async (req, res) => {
   try {
-    const { name, password } = req.body;
+    const { name, password, isAnonymous } = req.body;
     
     if (!name?.trim()) {
       return res.status(400).json({ 
@@ -197,6 +197,7 @@ router.post('/', auth, async (req, res) => {
       name: name.trim(),
       creator: req.user.id,
       participants: [req.user.id],
+      isAnonymous: isAnonymous,
       password: password
     });
 
