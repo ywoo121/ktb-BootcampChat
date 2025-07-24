@@ -20,14 +20,11 @@ jobs:
           echo "${{ secrets.AWS_PEM_KEY }}" > key.pem
           chmod 600 key.pem
 
-      - name: Debug - check secret substitution
-        run: echo "Image path: ${{ secrets.DOCKERHUB_USERNAME }}/frontend-loadtest:latest"
-
       - name: Pull and run Docker image on server
         run: |
           ssh -i key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.AWS_SERVER_HOST }} "
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/frontend-loadtest:latest
-            docker stop frontend-loadtest || true
-            docker rm frontend-loadtest || true
-            docker run -d --name frontend-loadtest -p 3000:80 ${{ secrets.DOCKERHUB_USERNAME }}/frontend-loadtest:latest
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest
+            docker stop 1-load-test-fe || true
+            docker rm 1-load-test-fe || true
+            docker run -d --name 1-load-test-fe -p 3000:80 ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest
           "
