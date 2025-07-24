@@ -5,26 +5,22 @@ import { Button, Avatar, Text } from '@vapor-ui/core';
 import { Flex, HStack, Box, Container } from './ui/Layout';
 import authService from '../services/authService';
 
-const Navbar = () => {
+const Navbar = ({ toggleMode, mode }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const router = useRouter();
 
-  // 인증 상태 변경을 감지하는 효과
   useEffect(() => {
     const checkAuth = () => {
       const user = authService.getCurrentUser();
       setCurrentUser(user);
     };
 
-    // 초기 인증 상태 확인
     checkAuth();
 
-    // authStateChange 이벤트 리스너 등록
     const handleAuthChange = () => {
       checkAuth();
     };
 
-    // userProfileUpdate 이벤트 리스너 등록
     const handleProfileUpdate = () => {
       checkAuth();
     };
@@ -32,12 +28,16 @@ const Navbar = () => {
     window.addEventListener('authStateChange', handleAuthChange);
     window.addEventListener('userProfileUpdate', handleProfileUpdate);
 
-    // 정리 함수
     return () => {
       window.removeEventListener('authStateChange', handleAuthChange);
       window.removeEventListener('userProfileUpdate', handleProfileUpdate);
     };
   }, []);
+
+  // mode가 변경될 때마다 콘솔에 출력
+  useEffect(() => {
+    console.log('Current theme mode:', mode);
+  }, [mode]);
 
   const handleNavigation = (path) => {
     router.push(path);
@@ -45,9 +45,20 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     await authService.logout();
-    // 로그아웃 후 authStateChange 이벤트 발생
     window.dispatchEvent(new Event('authStateChange'));
   };
+
+  // 토글 버튼 클릭 시 콘솔 로그와 함께 모드 변경
+  const handleToggleMode = () => {
+    const newMode = mode === 'light' ? 'dark' : 'light';
+    console.log('Theme mode changing from', mode, 'to', newMode);
+    toggleMode();
+    // 토글 후 상태는 useEffect에서 확인됨
+  };
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', mode);
+  }, [mode]);
 
   const isInChatRooms = router.pathname === '/chat-rooms';
 
@@ -69,7 +80,7 @@ const Navbar = () => {
               }}
             >
               <Image
-                src="/images/logo.png"
+                src={mode === 'light' ? '/images/logo_dark.png' : '/images/logo.png' }
                 alt="Chat App Logo"
                 width={240}
                 height={81}
@@ -103,56 +114,55 @@ const Navbar = () => {
 
           {/* User Menu */}
           <Box>
-            {currentUser ? (
-              <HStack gap="150" align="center">
-                {/* Profile Image */}
-                <Avatar.Root
-                  size="md"
-                  style={{ flexShrink: 0 }}
-                  src={currentUser.profileImage ? `${process.env.NEXT_PUBLIC_API_URL}${currentUser.profileImage}` : undefined}
-                >
-                  <Avatar.Image />
-                  <Avatar.Fallback>{currentUser.name?.[0]?.toUpperCase()}</Avatar.Fallback>
-                </Avatar.Root>
-                
-                {/* Member Name */}
-                <Text typography="body2" style={{ fontWeight: 500 }}>
-                  {currentUser.name}
-                </Text>
-                
-                {/* Profile Button */}
-                <Button
-                  size="md"
-                  onClick={() => handleNavigation('/profile')}
-                >
-                  프로필
-                </Button>
-                
-                {/* Logout Button */}
-                <Button
-                  color="danger"
-                  size="md"
-                  onClick={handleLogout}
-                >
-                  로그아웃
-                </Button>
-              </HStack>
-            ) : (
-              <HStack gap="150">
-                <Button
-                  size="md"
-                  onClick={() => handleNavigation('/')}
-                >
-                  로그인
-                </Button>
-                <Button
-                  size="md"
-                  onClick={() => handleNavigation('/register')}
-                >
-                  회원가입
-                </Button>
-              </HStack>
-            )}
+            <HStack gap="150" align="center">
+              {currentUser ? (
+                <>
+                  <Avatar.Root
+                    size="md"
+                    style={{ flexShrink: 0 }}
+                    src={
+                      currentUser.profileImage
+                        ? `${process.env.NEXT_PUBLIC_API_URL}${currentUser.profileImage}`
+                        : undefined
+                    }
+                  >
+                    <Avatar.Image />
+                    <Avatar.Fallback>{currentUser.name?.[0]?.toUpperCase()}</Avatar.Fallback>
+                  </Avatar.Root>
+
+                  <Text typography="body2" style={{ fontWeight: 500 }}>
+                    {currentUser.name}
+                  </Text>
+
+                  <Button size="md" onClick={() => handleNavigation('/profile')}>
+                    프로필
+                  </Button>
+
+                  <Button color="danger" size="md" onClick={handleLogout}>
+                    로그아웃
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="md" onClick={() => handleNavigation('/')}>
+                    로그인
+                  </Button>
+                  <Button size="md" onClick={() => handleNavigation('/register')}>
+                    회원가입
+                  </Button>
+                </>
+              )}
+
+              {/* 🌗 모드 토글 버튼 */}
+              <Button
+                size="md"
+                color="secondary"
+                onClick={handleToggleMode}
+                variant="soft"
+              >
+                {mode === 'dark' ? '🌙 다크모드' : '☀️ 라이트모드'}
+              </Button>
+            </HStack>
           </Box>
         </Flex>
       </Container>
