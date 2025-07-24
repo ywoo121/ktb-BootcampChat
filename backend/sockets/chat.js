@@ -384,10 +384,17 @@ module.exports = function(io) {
         socket.join(roomId);
         userRooms.set(socket.user.id, roomId);
 
+        // 해당 채팅방이 익명인지 여부
+        const isAnonymous = room?.isAnonymous;
+        console.log("BE>> socket.js || 채팅방 익명: ", isAnonymous);
+
+        const content = isAnonymous? "익명의 사용자가 입장하였습니다." : `${socket.user.name}님이 입장하였습니다.`;
+        
         // 입장 메시지 생성
         const joinMessage = new Message({
           room: roomId,
-          content: `${socket.user.name}님이 입장하였습니다.`,
+          // content: `${socket.user.name}님이 입장하였습니다.`,
+          content: content,
           type: 'system',
           timestamp: new Date()
         });
@@ -420,7 +427,7 @@ module.exports = function(io) {
           activeStreams
         });
 
-        io.to(roomId).emit('message', joinMessage);
+        io.to(roomId).emit('message', joinMessage, isAnonymous);
         io.to(roomId).emit('participantsUpdate', room.participants);
 
         logDebug('user joined room', {
