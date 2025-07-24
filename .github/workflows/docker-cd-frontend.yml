@@ -27,7 +27,7 @@ jobs:
       - name: Pull and run Docker image on server
         run: |
           ssh -i key.pem -o StrictHostKeyChecking=yes ubuntu@${{ secrets.AWS_SERVER_HOST }} "
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+            docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} -p ${{ secrets.DOCKER_HUB_TOKEN }}
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/1-load-test-fe:latest
             docker stop 1-load-test-fe || true
             docker rm 1-load-test-fe || true
