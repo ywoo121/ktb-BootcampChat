@@ -49,7 +49,6 @@ const ChatInput = forwardRef(({
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
   const typingTimeoutRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
   
   const handleFileValidationAndPreview = useCallback(async (file) => {
     if (!file) return;
