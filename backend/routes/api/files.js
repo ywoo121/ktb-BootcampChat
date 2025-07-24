@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 /**
  * 파일 업로드
  */
-router.post('/upload', s3UploadService.multerConfig.single('file'), async (req, res) => {
+router.post('/upload', auth, s3UploadService.multerConfig.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: '파일이 없습니다.' });
     if (!req.user || !req.user.id) return res.status(401).json({ error: '인증이 필요합니다.' });
