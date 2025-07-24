@@ -25,12 +25,20 @@ const Profile = () => {
 
   // 프로필 이미지 URL 생성
   const getProfileImageUrl = useCallback((imagePath) => {
+    console.log(imagePath)
     if (!imagePath) return null;
-    return imagePath.startsWith('http') ? 
-      imagePath : 
-      `${process.env.NEXT_PUBLIC_API_URL}${imagePath}`;
+  
+    if (imagePath.startsWith('http')) return imagePath;
+  
+    // S3 파일일 경우 (presigned 방식으로 직접 업로드한 파일)
+    if (imagePath.includes('uploads/')) {
+      
+      return `https://${process.env.NEXT_PUBLIC_S3_BUCKET}.s3.ap-northeast-2.amazonaws.com/${imagePath}`;
+    }
+  
+    // 백엔드 업로드 파일
+    return `${process.env.NEXT_PUBLIC_API_URL}${imagePath}`;
   }, []);
-
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (!user) {
@@ -70,7 +78,7 @@ const Profile = () => {
     try {
       // 이미지 URL 업데이트
       const fullImageUrl = getProfileImageUrl(imageUrl);
-      setProfileImage(imageUrl);
+      setProfileImage(fullImageUrl);
 
       // 현재 사용자 정보 가져오기
       const user = authService.getCurrentUser();
@@ -79,7 +87,7 @@ const Profile = () => {
       // 기존 상태 유지하면서 사용자 정보 업데이트
       const updatedUser = {
         ...user,
-        profileImage: imageUrl
+        profileImage: fullImageUrl
       };
       
       // localStorage 업데이트
