@@ -14,21 +14,10 @@ router.post('/upload',
 );
 
 // 파일 다운로드
-router.get('/download/:filename',
-  auth,
-  fileController.downloadFile
-);
-
-// 파일 보기 (미리보기용)
-router.get('/view/:filename',
-  auth,
-  fileController.viewFile
-);
-
+router.get('/download/:filename', auth, fileController.downloadFile);
+// 파일 미리보기
+router.get('/view/:filename', auth, fileController.viewFile);
 // 파일 삭제
-router.delete('/:id',
-  auth,
-  fileController.deleteFile
-);
+router.delete('/delete/:filename', auth, fileController.deleteFile);
 
 module.exports = router;

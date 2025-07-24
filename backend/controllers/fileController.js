@@ -7,6 +7,10 @@ const fs = require('fs');
 const { promisify } = require('util');
 const crypto = require('crypto');
 const { uploadDir } = require('../middleware/upload');
+const redisClient = require('../utils/redisClient');
+const { uploadFileToS3 } = require('../services/s3Service');
+const { S3Client, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { s3Bucket, s3Region, s3AccessKeyId, s3SecretAccessKey } = require('../config/keys');
 
 const fsPromises = {
   writeFile: promisify(fs.writeFile),
@@ -82,6 +86,20 @@ const getFileFromRequest = async (req) => {
   }
 };
 
+async function streamS3Object(s3Key, res, mimetype, disposition, size) {
+  const command = new GetObjectCommand({ Bucket: s3Bucket, Key: s3Key });
+  const s3Response = await s3.send(command);
+  res.set({
+    'Content-Type': mimetype,
+    'Content-Disposition': disposition,
+    'Content-Length': size,
+    'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  s3Response.Body.pipe(res);
+}
+
 exports.uploadFile = async (req, res) => {
   try {
     if (!req.file) {
@@ -93,33 +111,31 @@ exports.uploadFile = async (req, res) => {
 
     const safeFilename = generateSafeFilename(req.file.originalname);
     const currentPath = req.file.path;
-    const newPath = path.join(uploadDir, safeFilename);
+    const s3Key = `uploads/${safeFilename}`;
 
-    const file = new File({
+    // 1. S3 업로드
+    const s3Url = await uploadFileToS3(currentPath, s3Key, req.file.mimetype);
+
+    // 2. 임시 파일 삭제
+    await fsPromises.unlink(currentPath);
+
+    // 3. 메타데이터 Redis 저장
+    const fileMeta = {
       filename: safeFilename,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
       user: req.user.id,
-      path: newPath
-    });
-
-    await file.save();
-    await fsPromises.rename(currentPath, newPath);
+      s3Url,
+      uploadDate: new Date().toISOString()
+    };
+    await redisClient.set(`file:${safeFilename}`, fileMeta);
 
     res.status(200).json({
       success: true,
       message: '파일 업로드 성공',
-      file: {
-        _id: file._id,
-        filename: file.filename,
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        uploadDate: file.uploadDate
-      }
+      file: fileMeta
     });
-
   } catch (error) {
     console.error('File upload error:', error);
     if (req.file?.path) {
@@ -139,71 +155,41 @@ exports.uploadFile = async (req, res) => {
 
 exports.downloadFile = async (req, res) => {
   try {
-    const { file, filePath } = await getFileFromRequest(req);
-    const contentDisposition = file.getContentDisposition('attachment');
-
-    res.set({
-      'Content-Type': file.mimetype,
-      'Content-Length': file.size,
-      'Content-Disposition': contentDisposition,
-      'Cache-Control': 'private, no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.on('error', (error) => {
-      console.error('File streaming error:', error);
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          message: '파일 스트리밍 중 오류가 발생했습니다.'
-        });
-      }
-    });
-
-    fileStream.pipe(res);
-
+    const filename = req.params.filename;
+    const fileMeta = await redisClient.get(`file:${filename}`);
+    if (!fileMeta) {
+      return res.status(404).json({ success: false, message: '파일을 찾을 수 없습니다.' });
+    }
+    const disposition = `attachment; filename="${encodeURIComponent(fileMeta.originalname)}"`;
+    await streamS3Object(`uploads/${filename}`, res, fileMeta.mimetype, disposition, fileMeta.size);
   } catch (error) {
-    handleFileError(error, res);
+    console.error('File download error:', error);
+    res.status(500).json({ success: false, message: '파일 다운로드 중 오류가 발생했습니다.' });
   }
 };
 
 exports.viewFile = async (req, res) => {
   try {
-    const { file, filePath } = await getFileFromRequest(req);
-
-    if (!file.isPreviewable()) {
-      return res.status(415).json({
-        success: false,
-        message: '미리보기를 지원하지 않는 파일 형식입니다.'
-      });
+    const filename = req.params.filename;
+    const fileMeta = await redisClient.get(`file:${filename}`);
+    if (!fileMeta) {
+      return res.status(404).json({ success: false, message: '파일을 찾을 수 없습니다.' });
     }
-
-    const contentDisposition = file.getContentDisposition('inline');
-        
-    res.set({
-      'Content-Type': file.mimetype,
-      'Content-Disposition': contentDisposition,
-      'Content-Length': file.size,
-      'Cache-Control': 'public, max-age=31536000, immutable'
-    });
-
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.on('error', (error) => {
-      console.error('File streaming error:', error);
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          message: '파일 스트리밍 중 오류가 발생했습니다.'
-        });
-      }
-    });
-
-    fileStream.pipe(res);
-
+    // 미리보기 지원 파일만 허용 (간단히 mimetype으로 체크)
+    const previewableTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm',
+      'audio/mpeg', 'audio/wav',
+      'application/pdf'
+    ];
+    if (!previewableTypes.includes(fileMeta.mimetype)) {
+      return res.status(415).json({ success: false, message: '미리보기를 지원하지 않는 파일 형식입니다.' });
+    }
+    const disposition = `inline; filename="${encodeURIComponent(fileMeta.originalname)}"`;
+    await streamS3Object(`uploads/${filename}`, res, fileMeta.mimetype, disposition, fileMeta.size);
   } catch (error) {
-    handleFileError(error, res);
+    console.error('File view error:', error);
+    res.status(500).json({ success: false, message: '파일 미리보기 중 오류가 발생했습니다.' });
   }
 };
 
@@ -251,50 +237,23 @@ const handleFileError = (error, res) => {
 
 exports.deleteFile = async (req, res) => {
   try {
-    const file = await File.findById(req.params.id);
-    
-    if (!file) {
-      return res.status(404).json({
-        success: false,
-        message: '파일을 찾을 수 없습니다.'
-      });
+    const filename = req.params.filename;
+    const fileMeta = await redisClient.get(`file:${filename}`);
+    if (!fileMeta) {
+      return res.status(404).json({ success: false, message: '파일을 찾을 수 없습니다.' });
     }
-
-    if (file.user.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: '파일을 삭제할 권한이 없습니다.'
-      });
+    // 권한 체크 (업로더만 삭제 가능)
+    if (fileMeta.user !== req.user.id) {
+      return res.status(403).json({ success: false, message: '파일을 삭제할 권한이 없습니다.' });
     }
-
-    const filePath = path.join(uploadDir, file.filename);
-
-    if (!isPathSafe(filePath, uploadDir)) {
-      return res.status(403).json({
-        success: false,
-        message: '잘못된 파일 경로입니다.'
-      });
-    }
-    
-    try {
-      await fsPromises.access(filePath, fs.constants.W_OK);
-      await fsPromises.unlink(filePath);
-    } catch (unlinkError) {
-      console.error('File deletion error:', unlinkError);
-    }
-
-    await file.deleteOne();
-
-    res.json({
-      success: true,
-      message: '파일이 삭제되었습니다.'
-    });
+    // S3에서 삭제
+    const command = new DeleteObjectCommand({ Bucket: s3Bucket, Key: `uploads/${filename}` });
+    await s3.send(command);
+    // Redis에서 메타데이터 삭제
+    await redisClient.del(`file:${filename}`);
+    res.json({ success: true, message: '파일이 삭제되었습니다.' });
   } catch (error) {
     console.error('File deletion error:', error);
-    res.status(500).json({
-      success: false,
-      message: '파일 삭제 중 오류가 발생했습니다.',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: '파일 삭제 중 오류가 발생했습니다.' });
   }
 };
