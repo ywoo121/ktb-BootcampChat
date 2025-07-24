@@ -17,7 +17,6 @@
   --vapor-space-700: 3.5rem;    /* 56px */
   --vapor-space-800: 4rem;      /* 64px */
   --vapor-space-900: 4.5rem;    /* 72px */
-  
   /* Typography */
   --vapor-font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --vapor-font-size-075: 0.875rem;  /* 14px */
@@ -90,14 +89,14 @@ body {
 
 html,
 body {
-  height: 100vh;
-  overflow-y: scroll;
+  min-height: 100vh;
   margin: 0;
   padding: 0;
+  overflow-y: scroll; /* 수직 스크롤 항상 표시 */
+  overflow-x: hidden; /* 수평 스크롤 방지 */
 }
 
 #__next {
-  height: 100vh;
   overflow: hidden;
 }
 
