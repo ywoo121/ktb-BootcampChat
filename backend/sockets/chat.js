@@ -384,6 +384,9 @@ module.exports = function(io) {
         socket.join(roomId);
         userRooms.set(socket.user.id, roomId);
 
+        socket.data.roomId = roomId;
+        socket.data.username = socket.user.name;
+
         // 입장 메시지 생성
         const joinMessage = new Message({
           room: roomId,
@@ -438,6 +441,29 @@ module.exports = function(io) {
       }
     });
     
+
+    // 타이핑 중 이벤트
+    socket.on('typing', () => {
+      const { roomId, username } = socket.data;
+      console.log('[서버] typing 수신:', { roomId, username }); 
+
+      if (roomId && username) {
+        socket.to(roomId).emit('typing', { username });
+      } else {
+        console.warn('[서버] typing 실패 - roomId 또는 username 없음');
+      }
+    });
+
+    // 타이핑 멈춤 이벤트
+    socket.on('stopTyping', () => {
+      const { roomId, username } = socket.data;
+      console.log('[서버] stopTyping 수신:', { roomId, username }); 
+
+      if (roomId && username) {
+        socket.to(roomId).emit('stopTyping', { username });
+      }
+    });
+  
     // 메시지 전송 처리
     socket.on('chatMessage', async (messageData) => {
       try {
@@ -648,6 +674,8 @@ module.exports = function(io) {
         });
       }
     });
+
+    
     
     // 연결 해제 처리
     socket.on('disconnect', async (reason) => {
