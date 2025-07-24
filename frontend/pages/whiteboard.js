@@ -381,6 +381,7 @@ function WhiteboardPage() {
               </Text>
             </Box>
           )}
+
           {/* 연결된 사용자 목록 */}
           {users.length > 0 && (
             <Box
@@ -410,53 +411,8 @@ function WhiteboardPage() {
               </Flex>
             </Box>
           )}
-          {/* 화이트보드 정보 */}
 
-          {/* 도구 모음 */}
-          <Flex
-            gap="200"
-            align="center"
-            style={{
-              padding: "10px",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "8px",
-              flexWrap: "wrap",
-            }}
-          >
-            <Text typography="body2">색상:</Text>
-            <input
-              type="color"
-              value={brushColor}
-              onChange={(e) => setBrushColor(e.target.value)}
-              style={{
-                width: "40px",
-                height: "30px",
-                border: "none",
-                borderRadius: "4px",
-              }}
-            />
-
-            <Text typography="body2">크기:</Text>
-            <input
-              type="range"
-              min="1"
-              max="20"
-              value={brushSize}
-              onChange={(e) => setBrushSize(parseInt(e.target.value))}
-              style={{ width: "100px" }}
-            />
-            <Text typography="body2">{brushSize}px</Text>
-
-            <Button
-              variant="outline"
-              onClick={handleClearCanvas}
-              disabled={!connected}
-            >
-              🧹 모두 지우기
-            </Button>
-          </Flex>
-
-          {/* 캔버스 */}
+          {/* 캔버스 with 플로팅 툴바 */}
           <Box
             style={{
               flex: 1,
@@ -465,8 +421,118 @@ function WhiteboardPage() {
               backgroundColor: "white",
               boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
               overflow: "hidden",
+              position: "relative",
             }}
           >
+            {/* 플로팅 도구 모음 */}
+            <div
+              style={{
+                position: "absolute",
+                top: "20px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 10,
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(0, 0, 0, 0.1)",
+                borderRadius: "16px",
+                padding: "12px 20px",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                flexWrap: "wrap",
+                maxWidth: "90%",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <Text
+                  typography="body2"
+                  style={{ fontSize: "12px", color: "#666" }}
+                >
+                  색상:
+                </Text>
+                <input
+                  type="color"
+                  value={brushColor}
+                  onChange={(e) => setBrushColor(e.target.value)}
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    border: "2px solid #ddd",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                  }}
+                />
+              </div>
+
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <Text
+                  typography="body2"
+                  style={{ fontSize: "12px", color: "#666" }}
+                >
+                  크기:
+                </Text>
+                <input
+                  type="range"
+                  min="1"
+                  max="20"
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                  style={{
+                    width: "80px",
+                    height: "4px",
+                    borderRadius: "2px",
+                    background: "#ddd",
+                    outline: "none",
+                    cursor: "pointer",
+                  }}
+                />
+                <Text
+                  typography="body2"
+                  style={{
+                    fontSize: "11px",
+                    color: "#999",
+                    minWidth: "24px",
+                    textAlign: "center",
+                  }}
+                >
+                  {brushSize}px
+                </Text>
+              </div>
+
+              <div
+                style={{
+                  height: "24px",
+                  width: "1px",
+                  backgroundColor: "#ddd",
+                  margin: "0 4px",
+                }}
+              />
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearCanvas}
+                disabled={!connected}
+                style={{
+                  fontSize: "11px",
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  backgroundColor: connected ? "#fff" : "#f5f5f5",
+                  border: "1px solid #ddd",
+                  color: connected ? "#333" : "#999",
+                  cursor: connected ? "pointer" : "not-allowed",
+                }}
+              >
+                🧹 모두 지우기
+              </Button>
+            </div>
+
             <canvas
               ref={canvasRef}
               width={1200}
