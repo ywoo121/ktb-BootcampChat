@@ -2,6 +2,25 @@ const axios = require("axios");
 const { openaiApiKey } = require("../config/keys");
 const { fetchContext } = require('./retrieverService');
 
+// LangChain 추가
+const { ChatOpenAI } = require("@langchain/openai");    // 새 패키지
+const { BufferWindowMemory } = require("langchain/memory");
+const { ConversationChain } = require("langchain/chains");
+
+const chatModel = new ChatOpenAI({
+  openAIApiKey: openaiApiKey,
+  temperature: 0.5,
+});
+const memory = new BufferWindowMemory({
+  k: 10,
+  returnMessages: true,
+  memoryKey: "chat_history"
+});
+const langchainConversation = new ConversationChain({
+  llm: chatModel,
+  memory,
+});
+
 class AIService {
   constructor() {
     this.openaiClient = axios.create({
@@ -11,6 +30,12 @@ class AIService {
         "Content-Type": "application/json",
       },
     });
+    this.histories = {};
+  }
+
+  async generateLangchainResponse(input) {
+    const result = await langchainConversation.call({ input });
+    return result.response;
   }
 
   async generateResponse(message, persona = "wayneAI", callbacks) {
@@ -361,27 +386,20 @@ class AIService {
         },
       }[persona];
 
-      if (!aiPersona) {
-        throw new Error("Unknown AI persona");
-      }
+      if (!aiPersona) throw new Error("Unknown AI persona");
 
-      // RAG 컨텍스트 검색
-// 1. RAG가 필요한 persona 목록
+      if (!this.histories[persona]) this.histories[persona] = [];
+      const history = this.histories[persona];
+
       const useRAG = ['taxAI', 'algorithmAI'].includes(persona);
 
-      // 2. RAG context 적용 (필요한 경우만)
       let context = '';
       let ragSystem = '';
 
       if (useRAG) {
         let indexName;
-
-        if (persona === 'algorithmAI') {
-          indexName = process.env.PINECONE_ALGO_INDEX;
-        } else if (persona === 'taxAI') {
-          indexName = process.env.PINECONE_TAX_INDEX;
-        }
-
+        if (persona === 'algorithmAI') indexName = process.env.PINECONE_ALGO_INDEX;
+        else if (persona === 'taxAI') indexName = process.env.PINECONE_TAX_INDEX;
         context = await fetchContext(message, 4, indexName);
         ragSystem = `아래 '컨텍스트'를 참고해 답변하세요.\n<컨텍스트>\n${context}\n</컨텍스트>`;
       }
@@ -389,35 +407,22 @@ class AIService {
       const introResponse = aiPersona.introductionResponses?.find(item =>
         item.trigger.some(triggerPhrase => message.includes(triggerPhrase))
       );
-  
       if (introResponse) {
         callbacks.onStart();
-        callbacks.onComplete({
-          content: introResponse.response,
-        });
+        callbacks.onComplete({ content: introResponse.response });
+        history.push({ role: "user", content: message });
+        history.push({ role: "assistant", content: introResponse.response });
+        if (history.length > 20) history.splice(0, history.length - 20);
         return introResponse.response;
       }
 
-      const systemPrompt = `당신은 ${aiPersona.name}입니다.
-역할: ${aiPersona.role}
-특성: ${aiPersona.traits}
-톤: ${aiPersona.tone}
-
-답변 시 주의사항:
-1. 명확하고 이해하기 쉬운 언어로 답변하세요.
-2. 정확하지 않은 정보는 제공하지 마세요.
-3. 필요한 경우 예시를 들어 설명하세요.
-4. ${aiPersona.tone}을 유지하세요.`;
+      const systemPrompt = `당신은 ${aiPersona.name}입니다.\n역할: ${aiPersona.role}\n특성: ${aiPersona.traits}\n톤: ${aiPersona.tone}\n\n답변 시 주의사항:\n1. 명확하고 이해하기 쉬운 언어로 답변하세요.\n2. 정확하지 않은 정보는 제공하지 마세요.\n3. 필요한 경우 예시를 들어 설명하세요.\n4. ${aiPersona.tone}을 유지하세요.`;
 
       callbacks.onStart();
-
       const messages = [];
-
-      if (ragSystem) {
-        messages.push({ role: "system", content: ragSystem });
-      }
-      
+      if (ragSystem) messages.push({ role: "system", content: ragSystem });
       messages.push({ role: "system", content: systemPrompt });
+      messages.push(...history.slice(-20));
       messages.push({ role: "user", content: message });
 
       const response = await this.openaiClient.post(
@@ -428,9 +433,7 @@ class AIService {
           temperature: 0.5,
           stream: true,
         },
-        {
-          responseType: "stream",
-        }
+        { responseType: "stream" }
       );
 
       let fullResponse = "";
@@ -440,44 +443,28 @@ class AIService {
       return new Promise((resolve, reject) => {
         response.data.on("data", async (chunk) => {
           try {
-            // 청크 데이터를 문자열로 변환하고 버퍼에 추가
             buffer += chunk.toString();
-
-            // 완전한 JSON 객체를 찾아 처리
             while (true) {
               const newlineIndex = buffer.indexOf("\n");
               if (newlineIndex === -1) break;
-
               const line = buffer.slice(0, newlineIndex).trim();
               buffer = buffer.slice(newlineIndex + 1);
-
               if (line === "") continue;
               if (line === "data: [DONE]") {
-                callbacks.onComplete({
-                  content: fullResponse.trim(),
-                });
+                callbacks.onComplete({ content: fullResponse.trim() });
+                history.push({ role: "user", content: message });
+                history.push({ role: "assistant", content: fullResponse.trim() });
+                if (history.length > 20) history.splice(0, history.length - 20);
                 resolve(fullResponse.trim());
                 return;
               }
-
               if (line.startsWith("data: ")) {
                 try {
                   const data = JSON.parse(line.slice(6));
                   const content = data.choices[0]?.delta?.content;
-
                   if (content) {
-                    // 코드 블록 상태 업데이트
-                    if (content.includes("```")) {
-                      isCodeBlock = !isCodeBlock;
-                    }
-
-                    // 현재 청크만 전송
-                    await callbacks.onChunk({
-                      currentChunk: content,
-                      isCodeBlock,
-                    });
-
-                    // 전체 응답은 서버에서만 관리
+                    if (content.includes("```")) isCodeBlock = !isCodeBlock;
+                    await callbacks.onChunk({ currentChunk: content, isCodeBlock });
                     fullResponse += content;
                   }
                 } catch (err) {
