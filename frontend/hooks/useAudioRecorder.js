@@ -136,7 +136,7 @@ const useAudioRecorder = ({
       if (response.data.transcription) {
         let transcription = response.data.transcription;
         // Normalize Wayne AI mentions (add more variants)
-        transcription = transcription.replace(/(wayne\s*ai|웨인\s*에이아이|웨인ai|웨인 AI|웨인AI|웨인에이아이|웨인 에이 아이|wain\s*ai|wain ai|wain|웨인)/gi, '@Wayne AI');
+        transcription = transcription.replace(/(wayne\s*ai|웨인\s*에이아이|웨인ai|웨인 AI|웨인AI|웨인에이아이|웨인 에이 아이|wain\s*ai|wain ai|wain|웨인|Wayne)/gi, '@wayneAI');
         // Normalize Consulting AI mentions
         transcription = transcription.replace(/(consulting\s*ai|컨설팅\s*에이아이|컨설팅ai|컨설팅 AI|컨설팅AI)/gi, '@ConsultingAI');
         onTranscription?.(transcription);

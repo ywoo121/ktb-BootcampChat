@@ -14,6 +14,7 @@ const useTTSPlayer = ({ socketRef, onError }) => {
   const sourceRef = useRef(null);
   const gainNodeRef = useRef(null);
   const progressIntervalRef = useRef(null);
+  const playedMessagesRef = useRef(new Set());
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -43,6 +44,9 @@ const useTTSPlayer = ({ socketRef, onError }) => {
       setIsPlaying(false);
       setCurrentMessageId(null);
       setAudioProgress(0);
+      if (currentMessageId) {
+        playedMessagesRef.current.delete(currentMessageId);
+      }
       if (onStopped) onStopped();
     } catch (error) {
       console.error('Stop audio error:', error);
@@ -148,6 +152,8 @@ const useTTSPlayer = ({ socketRef, onError }) => {
 
   // Play TTS via API call
   const playTTS = useCallback(async (text, aiType, messageId) => {
+    if (playedMessagesRef.current.has(messageId)) return;
+    playedMessagesRef.current.add(messageId);
     try {
       setError(null);
       setIsGenerating(true);
@@ -259,10 +265,11 @@ const useTTSPlayer = ({ socketRef, onError }) => {
   useEffect(() => {
     return () => {
       stopAudio();
-      
+
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
+      playedMessagesRef.current.clear();
     };
   }, [stopAudio]);
 
