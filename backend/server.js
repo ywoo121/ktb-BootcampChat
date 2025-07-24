@@ -75,7 +75,9 @@ app.get('/health', (req, res) => {
 });
 
 // API 라우트 마운트
+console.log('Mounting API routes...');
 app.use('/api', routes);
+console.log('API routes mounted successfully');
 
 // Socket.IO 설정
 const io = socketIO(server, { cors: corsOptions });
