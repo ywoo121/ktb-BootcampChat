@@ -29,5 +29,5 @@ jobs:
             docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest
             docker stop 1-load-test-fe || true
             docker rm 1-load-test-fe || true
-            docker run -d --name 1-load-test-fe -p 3000:80 ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest
+            docker run -d --name 1-load-test-fe -p 3000:3000 ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest
           "
