@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # 백엔드 서비스
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./backend/.env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    container_name: chat-backend
+    networks:
+      - chat-network
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - mongodb
+      - redis
+
+  # 프론트엔드 서비스
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env.local
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    container_name: chat-frontend
+    networks:
+      - chat-network
+    depends_on:
+      - backend
+
+  # MongoDB 서비스
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=bootcampchat
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    container_name: chat-mongodb
+    networks:
+      - chat-network
+
+  # Redis 서비스
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    container_name: chat-redis
+    networks:
+      - chat-network
+
+networks:
+  chat-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data: 
