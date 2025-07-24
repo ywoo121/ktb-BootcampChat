@@ -20,6 +20,9 @@ jobs:
           echo "${{ secrets.AWS_PEM_KEY }}" > key.pem
           chmod 600 key.pem
 
+      - name: Debug secret
+        run: echo "Image = ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest"    
+
       - name: Pull and run Docker image on server
         run: |
           ssh -i key.pem -o StrictHostKeyChecking=no ubuntu@${{ secrets.AWS_SERVER_HOST }} "
