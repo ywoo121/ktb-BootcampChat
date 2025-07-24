@@ -445,13 +445,13 @@ module.exports = function(io) {
     // 타이핑 중 이벤트
     socket.on('typing', (data, callback) => {
       const { roomId, username } = socket.data;
-      console.log('[서버] typing 수신:', { roomId, username });
+      // console.log('[서버] typing 수신:', { roomId, username });
 
       if (roomId && username) {
         socket.to(roomId).emit('typing', { username });
         callback?.({ success: true });
       } else {
-        console.warn('[서버] typing 실패 - roomId 또는 username 없음');
+        // console.warn('[서버] typing 실패 - roomId 또는 username 없음');
         callback?.({ success: false, message: 'roomId 또는 username 없음' });
       }
     });
@@ -460,7 +460,7 @@ module.exports = function(io) {
     // 타이핑 멈춤 이벤트
     socket.on('stopTyping', (data, callback) => {
       const { roomId, username } = socket.data;
-      console.log('[서버] stopTyping 수신:', { roomId, username });
+      // console.log('[서버] stopTyping 수신:', { roomId, username });
 
       if (roomId && username) {
         socket.to(roomId).emit('stopTyping', { username });
