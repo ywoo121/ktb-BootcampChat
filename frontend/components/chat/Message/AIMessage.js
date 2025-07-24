@@ -77,6 +77,7 @@ const AIMessage = ({
               messageId={msg._id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
+              senderId={msg.sender?.id || msg.sender?._id}
               socketRef={socketRef}
             />
           </div>

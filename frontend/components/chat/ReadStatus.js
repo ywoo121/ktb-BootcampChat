@@ -10,7 +10,8 @@ const ReadStatus = ({
   socketRef = null,
   messageId = null,
   messageRef = null, // 메시지 요소의 ref 추가
-  currentUserId = null // 현재 사용자 ID 추가
+  currentUserId = null, // 현재 사용자 ID 추가
+  senderId = null // 메시지 발신자 ID 추가
 }) => {
   const [currentReaders, setCurrentReaders] = useState(readers || []);
   const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -22,13 +23,19 @@ const ReadStatus = ({
   const unreadParticipants = useMemo(() => {
     if (messageType === 'system') return [];
     
-    return participants.filter(participant => 
-      !currentReaders.some(reader => 
-        reader.userId === participant._id || 
-        reader.userId === participant.id
-      )
-    );
-  }, [participants, currentReaders, messageType]);
+    return participants.filter(participant => {
+      const participantId = participant._id || participant.id;
+      
+      // 메시지 발신자는 자동으로 읽음 처리 (읽지 않은 목록에서 제외)
+      if (senderId && participantId === senderId) {
+        return false;
+      }
+      
+      return !currentReaders.some(reader => 
+        reader.userId === participantId
+      );
+    });
+  }, [participants, currentReaders, messageType, senderId]);
 
   // 읽지 않은 참여자 수 계산
   const unreadCount = useMemo(() => {
@@ -42,6 +49,11 @@ const ReadStatus = ({
   const markMessageAsRead = useCallback(async () => {
     if (!messageId || !currentUserId || hasMarkedAsRead || 
         messageType === 'system' || !socketRef?.current) {
+      return;
+    }
+
+    // 본인이 보낸 메시지는 읽음처리 하지 않음 (자동으로 읽음 상태)
+    if (senderId && currentUserId === senderId) {
       return;
     }
 
@@ -67,11 +79,17 @@ const ReadStatus = ({
     } catch (error) {
       console.error('Error marking message as read:', error);
     }
-  }, [messageId, currentUserId, hasMarkedAsRead, messageType, socketRef]);
+  }, [messageId, currentUserId, hasMarkedAsRead, messageType, socketRef, senderId]);
 
   // Intersection Observer 설정
   useEffect(() => {
-    if (!messageRef?.current || !currentUserId || hasMarkedAsRead || messageType === 'system') {
+    if (!messageRef?.current || !currentUserId || hasMarkedAsRead || 
+        messageType === 'system') {
+      return;
+    }
+
+    // 본인이 보낸 메시지는 Intersection Observer 설정하지 않음
+    if (senderId && currentUserId === senderId) {
       return;
     }
 
@@ -107,7 +125,7 @@ const ReadStatus = ({
         observerRef.current.disconnect();
       }
     };
-  }, [messageRef, currentUserId, hasMarkedAsRead, messageType, currentReaders, markMessageAsRead]);
+  }, [messageRef, currentUserId, hasMarkedAsRead, messageType, currentReaders, markMessageAsRead, senderId]);
 
   // 툴팁 텍스트 생성
   const getTooltipText = useCallback(() => {
