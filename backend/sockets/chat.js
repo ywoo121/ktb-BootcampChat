@@ -514,7 +514,22 @@ module.exports = function(io) {
               triggerEmojiRain = true;
               finalContent = '☁️';
               emojiPayload = ['☁️', '🌧️', '🌦️', '🌈', '🌬️'];
-
+            } else if (messageContent === '/하트') {
+              triggerEmojiRain = true;
+              finalContent = '💖';
+              emojiPayload = ['💖', '💘', '💝', '💕', '💞', '💓'];
+            } else if (messageContent === '/박수') {
+              triggerEmojiRain = true;
+              finalContent = '👏';
+              emojiPayload = ['👏', '🙌', '👐', '🎶', '🎵'];
+            } else if (messageContent === '/축하') {
+              triggerEmojiRain = true;
+              finalContent = '🎉';
+              emojiPayload = ['🎉', '🎊', '🎈', '🥳', '🍾'];
+            } else if (messageContent === '/웃음') {
+              triggerEmojiRain = true;
+              finalContent = '😂';
+              emojiPayload = ['😂', '🤣', '😹', '😆', '😄'];
             }
 
             message = new Message({
