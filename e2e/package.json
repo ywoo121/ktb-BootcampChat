@@ -6,10 +6,11 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "test:ai": "playwright test test/ai/"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
+    "@playwright/test": "^1.54.1",
     "@types/node": "^20.17.7",
     "http-server": "^14.1.1",
     "typescript": "^5.7.2"
