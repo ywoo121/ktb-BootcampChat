@@ -131,7 +131,13 @@ class AuthService {
       throw new Error(response.data?.message || '로그인에 실패했습니다.');
 
     } catch (error) {
-      console.error('Login error:', error);
+      // console.error('Login error:', error);
+
+      if (error.response?.status === 401) {
+        alert('이메일 주소가 없거나 비밀번호가 틀렸습니다.')
+        Toast.error('이메일 주소가 없거나 비밀번호가 틀렸습니다.');
+        return null;
+      }
 
       if (error.response?.status === 401) {
         Toast.error('이메일 주소가 없거나 비밀번호가 틀렸습니다.');
@@ -147,6 +153,7 @@ class AuthService {
         Toast.error('서버와 통신할 수 없습니다. 잠시 후 다시 시도해주세요.');
         throw new Error('서버와 통신할 수 없습니다.');
       }
+
 
       const errorMessage = error.response?.data?.message || '로그인 중 오류가 발생했습니다.';
       Toast.error(errorMessage);
