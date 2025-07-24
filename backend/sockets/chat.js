@@ -36,7 +36,8 @@ module.exports = function(io) {
       }
       socket.join(roomId);
       userRooms.set(socket.user.id, roomId);
-      socket.emit('joinRoomSuccess', { roomId });
+      room.id = room._id; 
+      socket.emit('joinRoomSuccess', { room });
     });
 
     socket.on('chatMessage', async (data) => {

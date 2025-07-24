@@ -506,6 +506,7 @@ function ChatRoomsComponent() {
             setConnectionStatus(CONNECTION_STATUS.ERROR);
           },
           roomCreated: (newRoom) => {
+            if (!newRoom || !newRoom.id) return;
             setRooms(prev => {
               const updatedRooms = [newRoom, ...prev];
               previousRoomsRef.current = updatedRooms;
@@ -520,6 +521,7 @@ function ChatRoomsComponent() {
             });
           },
           roomUpdated: (updatedRoom) => {
+            if (!updatedRoom || !updatedRoom.id) return;
             setRooms(prev => {
               const updatedRooms = prev.map(room => 
                 room && room.id === updatedRoom.id ? updatedRoom : room
