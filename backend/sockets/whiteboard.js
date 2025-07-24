@@ -1,11 +1,13 @@
 const jwt = require("jsonwebtoken");
 const { jwtSecret } = require("../config/keys");
 const User = require("../models/User");
+const WhiteboardDrawing = require("../models/WhiteboardDrawing");
 
 module.exports = function (io) {
-  // 활성 화이트보드와 연결된 사용자들
+  // 활성 화이트보드와 연결된 사용자들 (메모리에서만 관리)
   const activeWhiteboards = new Map();
   const connectedUsers = new Map();
+  const activePaths = new Map(); // 현재 그리고 있는 패스들
 
   // 화이트보드 네임스페이스 생성
   const whiteboardNamespace = io.of("/whiteboard");
@@ -61,32 +63,19 @@ module.exports = function (io) {
 
         // 기존 방에서 나가기
         if (socket.currentWhiteboard) {
-          socket.leave(socket.currentWhiteboard);
-          const prevWhiteboard = activeWhiteboards.get(
-            socket.currentWhiteboard
-          );
-          if (prevWhiteboard) {
-            prevWhiteboard.users = prevWhiteboard.users.filter(
-              (u) => u.socketId !== socket.id
-            );
-            whiteboardNamespace.to(socket.currentWhiteboard).emit("userLeft", {
-              userId: socket.user.id,
-              userName: socket.user.name,
-            });
-          }
+          await leaveWhiteboardRoom(socket);
         }
 
         // 새 방 입장
         socket.join(whiteboardId);
         socket.currentWhiteboard = whiteboardId;
 
-        // 화이트보드 데이터 초기화
+        // 메모리에서 화이트보드 데이터 초기화
         if (!activeWhiteboards.has(whiteboardId)) {
           activeWhiteboards.set(whiteboardId, {
             id: whiteboardId,
-            drawings: [],
             users: [],
-            createdAt: Date.now(),
+            lastActivity: Date.now(),
           });
         }
 
@@ -108,11 +97,26 @@ module.exports = function (io) {
         whiteboardData.users.push(userInfo);
         connectedUsers.set(socket.id, userInfo);
 
-        // 현재 화이트보드 상태 전송
+        // 데이터베이스에서 저장된 드로잉 데이터 로드
+        const savedDrawings = await WhiteboardDrawing.getWhiteboardDrawings(
+          whiteboardId,
+          {
+            limit: 1000,
+            sortBy: "startTime",
+            sortOrder: 1,
+          }
+        );
+
+        console.log(
+          `📚 Loaded ${savedDrawings.length} saved drawings for whiteboard ${whiteboardId}`
+        );
+
+        // 현재 화이트보드 상태 전송 (저장된 데이터 포함)
         socket.emit("whiteboardState", {
           whiteboardId,
-          drawings: whiteboardData.drawings,
+          drawings: savedDrawings,
           users: whiteboardData.users,
+          stats: await WhiteboardDrawing.getWhiteboardStats(whiteboardId),
         });
 
         // 다른 사용자들에게 새 사용자 입장 알림
@@ -132,101 +136,204 @@ module.exports = function (io) {
       }
     });
 
-    // 실시간 그리기 이벤트
-    socket.on("drawing", (drawingData) => {
+    // 실시간 그리기 이벤트 - 데이터베이스 저장
+    socket.on("drawing", async (drawingData) => {
       if (!socket.currentWhiteboard) {
         console.warn("⚠️ Drawing event without whiteboard room");
         return;
       }
 
-      const whiteboardData = activeWhiteboards.get(socket.currentWhiteboard);
-      if (!whiteboardData) {
-        console.warn("⚠️ Drawing event for non-existent whiteboard");
-        return;
-      }
+      try {
+        const whiteboardId = socket.currentWhiteboard;
+        const pathId = drawingData.pathId || `${socket.id}-${Date.now()}`;
 
-      // 그리기 데이터에 사용자 정보 추가
-      const enrichedDrawingData = {
-        ...drawingData,
-        userId: socket.user.id,
-        userName: socket.user.name,
-        timestamp: Date.now(),
-        id: `${socket.id}-${Date.now()}`,
-      };
+        // 그리기 데이터에 사용자 정보 추가
+        const enrichedDrawingData = {
+          ...drawingData,
+          pathId,
+          userId: socket.user.id,
+          userName: socket.user.name,
+          timestamp: Date.now(),
+        };
 
-      // 메모리에 저장 (선택적)
-      if (drawingData.type === "path" || drawingData.type === "line") {
-        whiteboardData.drawings.push(enrichedDrawingData);
+        // 데이터베이스에 저장
+        if (drawingData.type === "start") {
+          // 새로운 패스 시작
+          const newPath = new WhiteboardDrawing({
+            id: pathId,
+            whiteboard: whiteboardId,
+            user: socket.user.id,
+            userName: socket.user.name,
+            points: [
+              {
+                x: drawingData.x,
+                y: drawingData.y,
+                type: "start",
+                color: drawingData.color,
+                size: drawingData.size,
+                timestamp: new Date(),
+              },
+            ],
+            color: drawingData.color,
+            size: drawingData.size,
+            startTime: new Date(),
+            isComplete: false,
+          });
 
-        // 메모리 관리: 너무 많은 그리기 데이터가 쌓이면 오래된 것 삭제
-        if (whiteboardData.drawings.length > 10000) {
-          whiteboardData.drawings = whiteboardData.drawings.slice(-5000);
+          await newPath.save();
+          activePaths.set(pathId, newPath);
+
+          console.log(
+            `🎨 Started new path ${pathId} for user ${socket.user.name}`
+          );
+        } else if (drawingData.type === "draw") {
+          // 기존 패스에 포인트 추가
+          const activePath = activePaths.get(pathId);
+          if (activePath) {
+            activePath.points.push({
+              x: drawingData.x,
+              y: drawingData.y,
+              type: "draw",
+              color: drawingData.color,
+              size: drawingData.size,
+              timestamp: new Date(),
+            });
+
+            // 주기적으로 저장 (매 10개 포인트마다)
+            if (activePath.points.length % 10 === 0) {
+              await activePath.save();
+            }
+          }
+        } else if (drawingData.type === "end") {
+          // 패스 완료
+          const activePath = activePaths.get(pathId);
+          if (activePath) {
+            activePath.points.push({
+              x:
+                drawingData.x ||
+                activePath.points[activePath.points.length - 1]?.x,
+              y:
+                drawingData.y ||
+                activePath.points[activePath.points.length - 1]?.y,
+              type: "end",
+              timestamp: new Date(),
+            });
+            activePath.endTime = new Date();
+            activePath.isComplete = true;
+
+            await activePath.save();
+            activePaths.delete(pathId);
+
+            console.log(
+              `✅ Completed path ${pathId} with ${activePath.points.length} points`
+            );
+          }
         }
+
+        // 같은 화이트보드의 다른 모든 사용자에게 실시간 전송
+        socket.to(whiteboardId).emit("drawing", enrichedDrawingData);
+
+        // 화이트보드 활동 시간 업데이트
+        const whiteboardData = activeWhiteboards.get(whiteboardId);
+        if (whiteboardData) {
+          whiteboardData.lastActivity = Date.now();
+        }
+      } catch (error) {
+        console.error("❌ Drawing save error:", error);
+        socket.emit("error", { message: "그리기 저장에 실패했습니다." });
       }
-
-      // 같은 화이트보드의 다른 모든 사용자에게 실시간 전송
-      socket.to(socket.currentWhiteboard).emit("drawing", enrichedDrawingData);
-
-      console.log(
-        `🎨 Drawing from ${socket.user.name} broadcasted to whiteboard ${socket.currentWhiteboard}`
-      );
     });
 
-    // 마우스 움직임 (실시간 커서)
-    socket.on("mouseMove", (mouseData) => {
+    // 캔버스 지우기 - 데이터베이스에서도 삭제
+    socket.on("clearCanvas", async () => {
       if (!socket.currentWhiteboard) return;
 
-      socket.to(socket.currentWhiteboard).emit("userMouseMove", {
-        userId: socket.user.id,
-        userName: socket.user.name,
-        x: mouseData.x,
-        y: mouseData.y,
-        timestamp: Date.now(),
-      });
+      try {
+        const whiteboardId = socket.currentWhiteboard;
+
+        // 데이터베이스에서 모든 드로잉 삭제
+        const result = await WhiteboardDrawing.clearWhiteboardDrawings(
+          whiteboardId,
+          socket.user.id
+        );
+
+        // 활성 패스도 정리
+        for (const [pathId, path] of activePaths.entries()) {
+          if (path.whiteboard.toString() === whiteboardId) {
+            activePaths.delete(pathId);
+          }
+        }
+
+        // 모든 사용자에게 캔버스 지우기 이벤트 전송
+        whiteboardNamespace.to(whiteboardId).emit("canvasCleared", {
+          clearedBy: socket.user.name,
+          timestamp: Date.now(),
+          deletedCount: result.deletedCount,
+        });
+
+        console.log(
+          `🧹 Canvas cleared by ${socket.user.name} in whiteboard ${whiteboardId}. Deleted ${result.deletedCount} paths`
+        );
+      } catch (error) {
+        console.error("❌ Clear canvas error:", error);
+        socket.emit("error", { message: "캔버스 지우기에 실패했습니다." });
+      }
     });
 
-    // 캔버스 지우기
-    socket.on("clearCanvas", () => {
+    // 화이트보드 통계 요청
+    socket.on("getStats", async () => {
       if (!socket.currentWhiteboard) return;
 
-      const whiteboardData = activeWhiteboards.get(socket.currentWhiteboard);
-      if (whiteboardData) {
-        whiteboardData.drawings = [];
+      try {
+        const stats = await WhiteboardDrawing.getWhiteboardStats(
+          socket.currentWhiteboard
+        );
+        socket.emit("statsUpdate", stats);
+      } catch (error) {
+        console.error("❌ Stats fetch error:", error);
       }
-
-      // 모든 사용자에게 캔버스 지우기 이벤트 전송
-      whiteboardNamespace.to(socket.currentWhiteboard).emit("canvasCleared", {
-        clearedBy: socket.user.name,
-        timestamp: Date.now(),
-      });
-
-      console.log(
-        `🧹 Canvas cleared by ${socket.user.name} in whiteboard ${socket.currentWhiteboard}`
-      );
     });
 
     // 화이트보드 나가기
-    socket.on("leaveWhiteboard", () => {
+    socket.on("leaveWhiteboard", async () => {
       if (socket.currentWhiteboard) {
-        leaveWhiteboardRoom(socket);
+        await leaveWhiteboardRoom(socket);
       }
     });
 
     // 연결 해제
-    socket.on("disconnect", (reason) => {
+    socket.on("disconnect", async (reason) => {
       console.log(
         `🔌 Whiteboard socket disconnected: ${socket.id} - ${reason}`
       );
 
       if (socket.currentWhiteboard) {
-        leaveWhiteboardRoom(socket);
+        await leaveWhiteboardRoom(socket);
       }
 
       connectedUsers.delete(socket.id);
+
+      // 미완성 패스 정리
+      for (const [pathId, path] of activePaths.entries()) {
+        if (pathId.startsWith(socket.id)) {
+          try {
+            // 미완성 패스를 완료 상태로 저장
+            if (path.points.length > 0) {
+              path.isComplete = true;
+              path.endTime = new Date();
+              await path.save();
+              console.log(`💾 Auto-saved incomplete path ${pathId}`);
+            }
+          } catch (error) {
+            console.error("❌ Auto-save path error:", error);
+          }
+          activePaths.delete(pathId);
+        }
+      }
     });
 
     // 화이트보드 방 나가기 공통 로직
-    function leaveWhiteboardRoom(socket) {
+    async function leaveWhiteboardRoom(socket) {
       const whiteboardId = socket.currentWhiteboard;
       const whiteboardData = activeWhiteboards.get(whiteboardId);
 
@@ -251,18 +358,19 @@ module.exports = function (io) {
           `👋 User ${socket.user.name} left whiteboard ${whiteboardId}. Remaining users: ${whiteboardData.users.length}`
         );
 
-        // 빈 화이트보드 정리 (선택적)
+        // 빈 화이트보드 메모리 정리 (데이터는 DB에 영구 저장됨)
         if (whiteboardData.users.length === 0) {
-          // 30분 후에 데이터 삭제 (메모리 절약)
           setTimeout(() => {
             if (activeWhiteboards.has(whiteboardId)) {
               const currentData = activeWhiteboards.get(whiteboardId);
               if (currentData.users.length === 0) {
                 activeWhiteboards.delete(whiteboardId);
-                console.log(`🗑️ Cleaned up empty whiteboard ${whiteboardId}`);
+                console.log(
+                  `🗑️ Cleaned up empty whiteboard memory ${whiteboardId}`
+                );
               }
             }
-          }, 30 * 60 * 1000); // 30분
+          }, 10 * 60 * 1000); // 10분 후 메모리 정리
         }
       }
 
@@ -271,28 +379,48 @@ module.exports = function (io) {
     }
 
     // 디버깅용 이벤트
-    socket.on("debugInfo", () => {
+    socket.on("debugInfo", async () => {
+      const stats = socket.currentWhiteboard
+        ? await WhiteboardDrawing.getWhiteboardStats(socket.currentWhiteboard)
+        : null;
+
       socket.emit("debugResponse", {
         socketId: socket.id,
         userId: socket.user.id,
         currentWhiteboard: socket.currentWhiteboard,
         totalWhiteboards: activeWhiteboards.size,
         connectedUsers: connectedUsers.size,
+        activePaths: activePaths.size,
+        dbStats: stats,
       });
     });
   });
 
-  // 디버깅용 함수
-  setInterval(() => {
+  // 주기적으로 미완성 패스 저장 (1분마다)
+  setInterval(async () => {
+    for (const [pathId, path] of activePaths.entries()) {
+      try {
+        if (path.points.length > 0 && path.isModified()) {
+          await path.save();
+        }
+      } catch (error) {
+        console.error("❌ Periodic save error for path", pathId, error);
+      }
+    }
+  }, 60000); // 1분마다
+
+  // 통계 로깅 (5분마다)
+  setInterval(async () => {
     const totalUsers = Array.from(activeWhiteboards.values()).reduce(
       (sum, wb) => sum + wb.users.length,
       0
     );
+    const totalPaths = await WhiteboardDrawing.countDocuments();
     console.log(
-      `📊 Whiteboard Stats - Active boards: ${activeWhiteboards.size}, Total users: ${totalUsers}`
+      `📊 Whiteboard Stats - Active boards: ${activeWhiteboards.size}, Users: ${totalUsers}, Total paths in DB: ${totalPaths}, Active paths: ${activePaths.size}`
     );
-  }, 60000); // 1분마다
+  }, 5 * 60000); // 5분마다
 
-  console.log("✅ Whiteboard socket handler initialized");
+  console.log("✅ Persistent Whiteboard socket handler initialized");
   return whiteboardNamespace;
 };

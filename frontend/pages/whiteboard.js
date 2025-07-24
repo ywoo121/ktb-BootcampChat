@@ -11,7 +11,8 @@ function WhiteboardPage() {
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
   const isDrawingRef = useRef(false);
-  const lastPointRef = useRef({ x: 0, y: 0 });
+  const currentPathRef = useRef(null);
+  const pathIdRef = useRef(null);
 
   const [currentUser] = useState(authService.getCurrentUser());
   const [connected, setConnected] = useState(false);
@@ -19,6 +20,12 @@ function WhiteboardPage() {
   const [brushColor, setBrushColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(3);
   const [whiteboardName, setWhiteboardName] = useState("화이트보드");
+  const [stats, setStats] = useState({
+    totalPaths: 0,
+    totalPoints: 0,
+    contributors: [],
+  });
+  const [isLoading, setIsLoading] = useState(true);
 
   // Socket.IO 연결
   const initializeSocket = useCallback(async () => {
@@ -32,7 +39,6 @@ function WhiteboardPage() {
 
       console.log("🔌 Connecting to whiteboard socket:", socketUrl);
 
-      // 화이트보드 전용 네임스페이스로 연결
       socketRef.current = io(`${socketUrl}/whiteboard`, {
         auth: {
           token: currentUser.token,
@@ -46,29 +52,38 @@ function WhiteboardPage() {
       socketRef.current.on("connect", () => {
         console.log("✅ Whiteboard socket connected:", socketRef.current.id);
         setConnected(true);
+        setIsLoading(true);
 
         // 화이트보드 방 입장
         socketRef.current.emit("joinWhiteboard", router.query.room);
       });
 
-      // 화이트보드 상태 수신
+      // 화이트보드 상태 수신 (저장된 데이터 포함)
       socketRef.current.on("whiteboardState", (data) => {
         console.log("📋 Received whiteboard state:", data);
         setUsers(data.users);
+        setStats(
+          data.stats || { totalPaths: 0, totalPoints: 0, contributors: [] }
+        );
 
-        // 기존 그리기 데이터 복원
+        // 저장된 그리기 데이터 복원
         if (data.drawings && data.drawings.length > 0) {
-          redrawCanvas(data.drawings);
+          console.log(`🎨 Restoring ${data.drawings.length} saved drawings...`);
+          restoreDrawings(data.drawings);
+        } else {
+          console.log("📄 No saved drawings found, starting with clean canvas");
         }
+
+        setIsLoading(false);
       });
 
       // 실시간 그리기 수신
       socketRef.current.on("drawing", (drawingData) => {
-        console.log("🎨 Received drawing:", drawingData);
+        console.log("🎨 Received real-time drawing:", drawingData);
         drawOnCanvas(drawingData);
       });
 
-      // 사용자 입장/퇴장
+      // 사용자 관련 이벤트
       socketRef.current.on("userJoined", (userInfo) => {
         console.log("👋 User joined:", userInfo.userName);
       });
@@ -85,6 +100,12 @@ function WhiteboardPage() {
       socketRef.current.on("canvasCleared", (data) => {
         console.log("🧹 Canvas cleared by:", data.clearedBy);
         clearCanvas();
+        setStats({ totalPaths: 0, totalPoints: 0, contributors: [] });
+      });
+
+      // 통계 업데이트
+      socketRef.current.on("statsUpdate", (newStats) => {
+        setStats(newStats);
       });
 
       // 에러 처리
@@ -97,12 +118,49 @@ function WhiteboardPage() {
         console.log("🔌 Socket disconnected:", reason);
         setConnected(false);
       });
+
+      socketRef.current.on("error", (error) => {
+        console.error("❌ Socket error:", error);
+        alert(error.message || "오류가 발생했습니다.");
+      });
     } catch (error) {
       console.error("❌ Socket initialization error:", error);
+      setIsLoading(false);
     }
   }, [router.query.room, currentUser]);
 
-  // 캔버스에 그리기
+  // 저장된 드로잉 데이터 복원
+  const restoreDrawings = useCallback((savedDrawings) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    savedDrawings.forEach((drawingPath) => {
+      if (drawingPath.points && drawingPath.points.length > 0) {
+        ctx.beginPath();
+        ctx.strokeStyle = drawingPath.color || "#000000";
+        ctx.lineWidth = drawingPath.size || 3;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        drawingPath.points.forEach((point, index) => {
+          if (point.type === "start" || index === 0) {
+            ctx.moveTo(point.x, point.y);
+          } else if (point.type === "draw") {
+            ctx.lineTo(point.x, point.y);
+          }
+        });
+
+        ctx.stroke();
+      }
+    });
+
+    console.log(`✅ Restored ${savedDrawings.length} drawing paths`);
+  }, []);
+
+  // 실시간 캔버스에 그리기
   const drawOnCanvas = useCallback((drawingData) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -112,33 +170,17 @@ function WhiteboardPage() {
     if (drawingData.type === "start") {
       ctx.beginPath();
       ctx.moveTo(drawingData.x, drawingData.y);
-    } else if (drawingData.type === "draw") {
-      ctx.lineTo(drawingData.x, drawingData.y);
       ctx.strokeStyle = drawingData.color || "#000000";
       ctx.lineWidth = drawingData.size || 3;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
+    } else if (drawingData.type === "draw") {
+      ctx.lineTo(drawingData.x, drawingData.y);
       ctx.stroke();
     } else if (drawingData.type === "end") {
       ctx.beginPath();
     }
   }, []);
-
-  // 기존 그리기 데이터 복원
-  const redrawCanvas = useCallback(
-    (drawings) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      drawings.forEach((drawing) => {
-        drawOnCanvas(drawing);
-      });
-    },
-    [drawOnCanvas]
-  );
 
   // 캔버스 지우기
   const clearCanvas = useCallback(() => {
@@ -168,17 +210,22 @@ function WhiteboardPage() {
 
       isDrawingRef.current = true;
       const pos = getMousePos(e);
-      lastPointRef.current = pos;
+      pathIdRef.current = `${socketRef.current.id}-${Date.now()}`;
 
-      // 로컬 캔버스에 그리기
+      // 로컬 캔버스에 그리기 시작
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
+      ctx.strokeStyle = brushColor;
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
 
       // 서버로 그리기 시작 이벤트 전송
       socketRef.current.emit("drawing", {
         type: "start",
+        pathId: pathIdRef.current,
         x: pos.x,
         y: pos.y,
         color: brushColor,
@@ -198,22 +245,17 @@ function WhiteboardPage() {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       ctx.lineTo(pos.x, pos.y);
-      ctx.strokeStyle = brushColor;
-      ctx.lineWidth = brushSize;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
       ctx.stroke();
 
       // 서버로 그리기 이벤트 전송
       socketRef.current.emit("drawing", {
         type: "draw",
+        pathId: pathIdRef.current,
         x: pos.x,
         y: pos.y,
         color: brushColor,
         size: brushSize,
       });
-
-      lastPointRef.current = pos;
     },
     [connected, getMousePos, brushColor, brushSize]
   );
@@ -223,25 +265,32 @@ function WhiteboardPage() {
 
     isDrawingRef.current = false;
 
-    if (socketRef.current && connected) {
+    if (socketRef.current && connected && pathIdRef.current) {
       socketRef.current.emit("drawing", {
         type: "end",
+        pathId: pathIdRef.current,
       });
     }
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.beginPath();
+    // 통계 업데이트 요청
+    if (socketRef.current && connected) {
+      socketRef.current.emit("getStats");
+    }
+
+    pathIdRef.current = null;
   }, [connected]);
 
   // 캔버스 지우기 핸들러
   const handleClearCanvas = useCallback(() => {
-    if (socketRef.current && connected) {
-      socketRef.current.emit("clearCanvas");
-    } else {
-      clearCanvas();
+    if (!connected) {
+      alert("서버에 연결되지 않았습니다.");
+      return;
     }
-  }, [connected, clearCanvas]);
+
+    if (confirm("모든 그림을 지우시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+      socketRef.current.emit("clearCanvas");
+    }
+  }, [connected]);
 
   // 컴포넌트 마운트
   useEffect(() => {
@@ -282,6 +331,27 @@ function WhiteboardPage() {
               <Badge color="primary">👥 {users.length}명 참여 중</Badge>
             </Flex>
           </Flex>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              marginTop: "10px",
+              justifyContent: "end",
+            }}
+            align="right"
+            gap="200"
+          >
+            {stats.contributors.length > 0 && (
+              <Text typography="body3">
+                👨‍🎨 {stats.contributors.length}명 기여
+              </Text>
+            )}
+            {stats.lastActivity && (
+              <Text typography="body3" style={{ color: "#666" }}>
+                마지막 활동: {new Date(stats.lastActivity).toLocaleTimeString()}
+              </Text>
+            )}
+          </div>
         </Card.Header>
 
         <Card.Body
@@ -291,6 +361,57 @@ function WhiteboardPage() {
             gap: "var(--vapor-space-200)",
           }}
         >
+          {/* 로딩 상태 */}
+          {isLoading && (
+            <Box
+              style={{
+                textAlign: "center",
+                padding: "20px",
+                backgroundColor: "#f0f8ff",
+                borderRadius: "8px",
+                border: "2px dashed #4A90E2",
+              }}
+            >
+              <Text typography="body1">🎨 화이트보드를 불러오는 중...</Text>
+              <Text
+                typography="body2"
+                style={{ marginTop: "5px", color: "#666" }}
+              >
+                저장된 그림을 복원하고 있습니다.
+              </Text>
+            </Box>
+          )}
+          {/* 연결된 사용자 목록 */}
+          {users.length > 0 && (
+            <Box
+              style={{
+                padding: "10px",
+                backgroundColor: "#f0f8ff",
+                borderRadius: "8px",
+              }}
+            >
+              <Text typography="body2" style={{ marginBottom: "5px" }}>
+                현재 참여자:
+              </Text>
+              <Flex gap="100" wrap="wrap">
+                {users.map((user, index) => (
+                  <Badge
+                    key={user.socketId || index}
+                    color="primary"
+                    style={{
+                      fontSize: "12px",
+                      backgroundColor: user.color || "#4A90E2",
+                      color: "white",
+                    }}
+                  >
+                    {user.userName}
+                  </Badge>
+                ))}
+              </Flex>
+            </Box>
+          )}
+          {/* 화이트보드 정보 */}
+
           {/* 도구 모음 */}
           <Flex
             gap="200"
@@ -299,6 +420,7 @@ function WhiteboardPage() {
               padding: "10px",
               backgroundColor: "#f5f5f5",
               borderRadius: "8px",
+              flexWrap: "wrap",
             }}
           >
             <Text typography="body2">색상:</Text>
@@ -330,43 +452,19 @@ function WhiteboardPage() {
               onClick={handleClearCanvas}
               disabled={!connected}
             >
-              🧹 캔버스 지우기
+              🧹 모두 지우기
             </Button>
           </Flex>
-
-          {/* 연결된 사용자 목록 */}
-          {users.length > 0 && (
-            <Box
-              style={{
-                padding: "10px",
-                backgroundColor: "#f0f8ff",
-                borderRadius: "8px",
-              }}
-            >
-              <Text typography="body2" style={{ marginBottom: "5px" }}>
-                참여자:
-              </Text>
-              <Flex gap="100" wrap="wrap">
-                {users.map((user, index) => (
-                  <Badge
-                    key={user.socketId || index}
-                    color="primary"
-                    style={{ fontSize: "12px" }}
-                  >
-                    {user.userName}
-                  </Badge>
-                ))}
-              </Flex>
-            </Box>
-          )}
 
           {/* 캔버스 */}
           <Box
             style={{
               flex: 1,
-              border: "2px solid #ddd",
-              borderRadius: "8px",
+              border: "3px solid #ddd",
+              borderRadius: "12px",
               backgroundColor: "white",
+              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+              overflow: "hidden",
             }}
           >
             <canvas
@@ -376,7 +474,7 @@ function WhiteboardPage() {
               style={{
                 width: "100%",
                 height: "100%",
-                cursor: "crosshair",
+                cursor: connected ? "crosshair" : "not-allowed",
                 display: "block",
               }}
               onMouseDown={startDrawing}
@@ -386,26 +484,34 @@ function WhiteboardPage() {
             />
           </Box>
 
-          {/* 연결 상태 디버깅 */}
-          {process.env.NODE_ENV === "development" && (
-            <Box
-              style={{
-                padding: "10px",
-                backgroundColor: "#f5f5f5",
-                borderRadius: "4px",
-                fontSize: "12px",
-              }}
-            >
+          {/* 연결 상태 및 저장 정보 */}
+          <Box
+            style={{
+              padding: "10px",
+              backgroundColor: connected ? "#e8f5e8" : "#ffe8e8",
+              borderRadius: "6px",
+              border: `2px solid ${connected ? "#4CAF50" : "#f44336"}`,
+            }}
+          >
+            <Flex justify="space-between" align="center">
               <Text typography="body3">
-                디버그: Socket ID: {socketRef.current?.id || "N/A"} | 연결됨:{" "}
-                {connected ? "Yes" : "No"} | 방 ID: {router.query.room}
+                {connected ? "✅ 실시간 동기화 활성" : "❌ 연결 끊어짐"} • 모든
+                그림이 자동으로 저장됩니다
               </Text>
-            </Box>
-          )}
+              {process.env.NODE_ENV === "development" && (
+                <Text
+                  typography="body3"
+                  style={{ fontFamily: "monospace", fontSize: "11px" }}
+                >
+                  {socketRef.current?.id || "N/A"} | Room: {router.query.room}
+                </Text>
+              )}
+            </Flex>
+          </Box>
         </Card.Body>
       </Card.Root>
     </div>
   );
 }
 
-export default withAuth(WhiteboardPage);
+export default WhiteboardPage;
