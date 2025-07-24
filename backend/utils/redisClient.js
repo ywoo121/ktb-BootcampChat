@@ -285,8 +285,21 @@ async function getMessages(roomId, start = 0, end = -1) {
   return data.map(JSON.parse);
 }
 
+// Add setJson helper for storing JSON with TTL
+async function setJson(key, value, ttl) {
+  if (ttl) {
+    return redisClient.setEx(key, ttl, JSON.stringify(value));
+  } else {
+    return redisClient.set(key, JSON.stringify(value));
+  }
+}
+
 module.exports = {
-  ...module.exports,
+  redisClient,
+  get: (...args) => redisClient.get(...args),
+  set: (...args) => redisClient.set(...args),
+  setEx: (...args) => redisClient.setEx(...args),
+  setJson,
   createUser,
   getUserById,
   getUserByEmail,
