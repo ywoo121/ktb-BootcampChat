@@ -125,6 +125,7 @@ class AuthService {
 
         localStorage.setItem('user', JSON.stringify(userData));
         window.dispatchEvent(new Event('authStateChange'));
+        
         return userData;
       }
 
