@@ -122,7 +122,7 @@ class RedisClient {
             retryDelayOnFailover: 500,
             maxRetriesPerRequest: 5,   // 재시도 횟수 증가
           },
-          enableOfflineQueue: false,
+          enableOfflineQueue: true,
           retryDelayOnFailover: 500,
           retryDelayOnClusterDown: 1000,
           maxRetriesPerRequest: 5,
