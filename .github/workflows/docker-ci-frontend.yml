@@ -46,9 +46,7 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest
+        working-directory: frontend
+        run: |
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/1-load-test-fe:latest
