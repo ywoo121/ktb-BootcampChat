@@ -264,12 +264,12 @@ class AuthService {
       if (!user?.token) {
         throw new Error('인증 정보가 없습니다.');
       }
-
       const response = await axios.put(
-        `${API_URL}/api/users/profile/change-password`,
+        `${API_URL}/api/users/change-password`,
         {
-          currentPassword,
-          newPassword
+          currentPassword : currentPassword,
+          newPassword : newPassword,
+          confirmPassword : newPassword,
         },
         {
           headers: {
