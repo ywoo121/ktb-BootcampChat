@@ -243,7 +243,7 @@ class RedisClient {
       }
 
       if (options.ttl) {
-        return await client.setEx(key, options.ttl, stringValue);
+        return await client.setex(key, options.ttl, stringValue);
       }
       return await client.set(key, stringValue);
     } catch (error) {
@@ -289,7 +289,8 @@ class RedisClient {
         stringValue = String(value);
       }
 
-      return await client.setEx(key, seconds, stringValue);
+      // Redis Cluster에서는 setex (소문자) 사용
+      return await client.setex(key, seconds, stringValue);
     } catch (error) {
       console.error('Redis setEx error:', error);
       throw error;
