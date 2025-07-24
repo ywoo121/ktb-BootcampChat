@@ -19,6 +19,8 @@ jobs:
         run: |
           echo "${{ secrets.AWS_PEM_KEY }}" > key.pem
           chmod 600 key.pem
+      - name: Debug - check secret substitution
+        run: echo "Image path: ${{ secrets.DOCKERHUB_USERNAME }}/frontend-loadtest:latest"
 
       - name: Pull and run Docker image on server
         run: |
