@@ -365,14 +365,12 @@ export const useRoomHandling = (
         const roomData = await fetchRoomData(router.query.room);
         
         // Ensure current user is included in participants for display
-        if (currentUser && roomData.participants) {
-          const isUserInParticipants = roomData.participants.some(p => 
-            p._id === currentUser.id || p.id === currentUser.id
-          );
+        if (currentUser && Array.isArray(roomData.participants)) {
+          const isUserInParticipants = roomData.participants.some(p => p && (p._id === currentUser.id || p.id === currentUser.id));
           
           if (!isUserInParticipants) {
             roomData.participants = [
-              ...roomData.participants,
+              ...roomData.participants.filter(Boolean),
               {
                 _id: currentUser.id,
                 id: currentUser.id,
