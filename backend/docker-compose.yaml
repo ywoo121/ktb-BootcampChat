@@ -5,23 +5,34 @@ services:
     container_name: ktb-backend-1
     ports:
       - "5001:5000"
-  backend2:
-    build: .
-    container_name: ktb-backend-2
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+  redis:
+    image: redis:7-alpine
+    container_name: ktb-redis
     ports:
-      - "5002:5000"
-  backend3:
-    build: .
-    container_name: ktb-backend-3
-    ports:
-      - "5003:5000"
-  backend4:
-    build: .
-    container_name: ktb-backend-4
-    ports:
-      - "5004:5000"
-  backend5:
-    build: .
-    container_name: ktb-backend-5
-    ports:
-      - "5005:5000"
+      - "6379:6379"
+    restart: always
+  # backend2:
+  #   build: .
+  #   container_name: ktb-backend-2
+  #   ports:
+  #     - "5002:5000"
+  # backend3:
+  #   build: .
+  #   container_name: ktb-backend-3
+  #   ports:
+  #     - "5003:5000"
+  # backend4:
+  #   build: .
+  #   container_name: ktb-backend-4
+  #   ports:
+  #     - "5004:5000"
+  # backend5:
+  #   build: .
+  #   container_name: ktb-backend-5
+  #   ports:
+  #     - "5005:5000"
