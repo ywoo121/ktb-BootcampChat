@@ -59,6 +59,11 @@ const ChatPage = () => {
     const participants = room.participants;
     const remainingCount = Math.max(0, participants.length - maxVisibleAvatars);
 
+    // 익명 채팅방 여부
+    const isAnonymous = room.isAnonymous;
+    
+    console.log("익명채팅방 여부 : ", isAnonymous);
+
     return (
       <HStack gap="100" align="center">
           {participants.slice(0, maxVisibleAvatars).map(participant => {
@@ -75,8 +80,11 @@ const ChatPage = () => {
                   flexShrink: 0
                 }}
               >
-                <Avatar.Fallback style={{ backgroundColor, color }}>
-                  {participant.name.charAt(0).toUpperCase()}
+                <Avatar.Fallback style={{ 
+                  backgroundColor: isAnonymous ? '#a9a9a9': backgroundColor, 
+                  color : isAnonymous ? "#ffffff": color
+                }}>
+                  {isAnonymous ? '👤' : (participant.name.charAt(0).toUpperCase())}
                 </Avatar.Fallback>
               </Avatar.Root>
             );
