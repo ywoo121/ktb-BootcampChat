@@ -6,10 +6,11 @@ import {
   CorrectOutlineIcon as CheckCheck, 
   CorrectOutlineIcon as Check, 
   MusicIcon as Music, 
-  ExternalLinkIcon as ExternalLink, 
+  LinkOutlineIcon as ExternalLink,
   DownloadIcon as Download,
   ErrorCircleIcon as AlertCircle 
 } from '@vapor-ui/icons';
+
 import { Button, Text, Callout } from '@vapor-ui/core';
 import PersistentAvatar from '../../common/PersistentAvatar';
 import MessageContent from './MessageContent';
@@ -212,8 +213,9 @@ const FileMessage = ({
     const mimetype = msg.file?.mimetype || '';
     const originalname = getDecodedFilename(msg.file?.originalname || 'Unknown File');
     const size = fileService.formatFileSize(msg.file?.size || 0);
-    
-    const FileActions = () => (
+    console.log('Download:', Download);           // undefined이면 문제
+    console.log('ExternalLink:', ExternalLink);  
+    const FileActions = ({ handleViewInNewTab, handleFileDownload }) => (
       <div className="file-actions mt-2 pt-2 border-t border-gray-200">
         <Button
           size="sm"
@@ -251,7 +253,10 @@ const FileMessage = ({
               <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
-          <FileActions />
+          <FileActions 
+            handleViewInNewTab={handleViewInNewTab}
+            handleFileDownload={handleFileDownload}
+            />
         </div>
       );
     }
