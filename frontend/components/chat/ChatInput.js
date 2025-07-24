@@ -44,6 +44,7 @@ const ChatInput = forwardRef(({
 }, ref) => {
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
+  const selectedRef = useRef(null);
   const dropZoneRef = useRef(null);
   const internalInputRef = useRef(null);
   const messageInputRef = ref || internalInputRef;
@@ -186,6 +187,12 @@ const ChatInput = forwardRef(({
       files.forEach(file => URL.revokeObjectURL(file.url));
     };
   }, [showEmojiPicker, setShowEmojiPicker, files, messageInputRef, handleFileValidationAndPreview]);
+
+  useEffect(() => {
+    if (selectedRef.current) {
+      selectedRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [selectedIndex]);
 
   const calculateMentionPosition = useCallback((textarea, atIndex) => {
     // Get all text before @ symbol
@@ -598,6 +605,7 @@ const handleKeyDown = useCallback((e) => {
             {filteredCommands.map((cmd, idx) => (
               <li
                 key={cmd.command}
+                ref={idx === selectedIndex ? selectedRef : null} 
                 onMouseDown={() => {
                   setMessage(cmd.command); // 슬래시 명령어 입력창에 삽입
                   setShowCommandList(false);
