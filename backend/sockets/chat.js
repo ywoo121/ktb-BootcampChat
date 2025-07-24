@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config/keys');
 const redisClient = require('../utils/redisClient');
 const SessionService = require('../services/sessionService');
+const audioService = require('../services/audioService');
 const aiService = require('../services/aiService');
 
 module.exports = function(io) {
@@ -814,6 +815,130 @@ module.exports = function(io) {
         console.error('Message reaction error:', error);
         socket.emit('error', {
           message: error.message || '리액션 처리 중 오류가 발생했습니다.'
+        });
+      }
+    });
+
+    // Audio transcription chunk processing
+    socket.on('audioChunk', async ({ audioData, sessionId, sequence, roomId }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!audioData || !sessionId) {
+          throw new Error('Audio data and session ID are required');
+        }
+
+        // Convert base64 audio data to buffer
+        const audioBuffer = Buffer.from(audioData, 'base64');
+        
+        // Process audio chunk for transcription
+        const partialTranscription = await audioService.processAudioChunk(audioBuffer, sessionId);
+        
+        if (partialTranscription && partialTranscription.trim()) {
+          // Send partial transcription back to the client
+          socket.emit('transcriptionChunk', {
+            sessionId,
+            sequence,
+            transcription: partialTranscription,
+            isPartial: true,
+            timestamp: new Date()
+          });
+
+          logDebug('audio chunk processed', {
+            sessionId,
+            sequence,
+            transcriptionLength: partialTranscription.length,
+            userId: socket.user.id
+          });
+        }
+
+      } catch (error) {
+        console.error('Audio chunk processing error:', error);
+        socket.emit('transcriptionError', {
+          sessionId: sessionId || 'unknown',
+          error: error.message || 'Audio transcription failed'
+        });
+      }
+    });
+
+    // Complete audio transcription
+    socket.on('audioComplete', async ({ sessionId, roomId }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!sessionId) {
+          throw new Error('Session ID is required');
+        }
+
+        // Notify completion
+        socket.emit('transcriptionComplete', {
+          sessionId,
+          timestamp: new Date()
+        });
+
+        logDebug('audio transcription completed', {
+          sessionId,
+          userId: socket.user.id,
+          roomId
+        });
+
+      } catch (error) {
+        console.error('Audio completion error:', error);
+        socket.emit('transcriptionError', {
+          sessionId: sessionId || 'unknown',
+          error: error.message || 'Audio completion failed'
+        });
+      }
+    });
+
+    // TTS request for AI messages
+    socket.on('requestTTS', async ({ messageId, text, aiType }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!text || !messageId) {
+          throw new Error('Message ID and text are required');
+        }
+
+        logDebug('TTS requested', {
+          messageId,
+          aiType,
+          textLength: text.length,
+          userId: socket.user.id
+        });
+
+        // Generate TTS audio
+        const audioBuffer = await audioService.textToSpeech(text, aiType || 'default');
+        
+        // Convert to base64 for transmission
+        const audioBase64 = audioBuffer.toString('base64');
+        
+        socket.emit('ttsReady', {
+          messageId,
+          audioData: audioBase64,
+          format: 'mp3',
+          voice: audioService.getVoiceForAI(aiType),
+          timestamp: new Date()
+        });
+
+        logDebug('TTS generated', {
+          messageId,
+          aiType,
+          audioSize: audioBuffer.length,
+          userId: socket.user.id
+        });
+
+      } catch (error) {
+        console.error('TTS generation error:', error);
+        socket.emit('ttsError', {
+          messageId: messageId || 'unknown',
+          error: error.message || 'TTS generation failed'
         });
       }
     });
