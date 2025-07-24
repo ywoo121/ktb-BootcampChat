@@ -221,6 +221,7 @@ const FileMessage = ({
           size="sm"
           variant="outline"
           onClick={handleViewInNewTab}
+          
           title="새 탭에서 보기"
         >
           <ExternalLink size={16} />
@@ -289,7 +290,10 @@ const FileMessage = ({
               <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
-          <FileActions />
+          <FileActions 
+            handleViewInNewTab={handleViewInNewTab}
+            handleFileDownload={handleFileDownload}
+          />
         </div>
       );
     }
@@ -317,7 +321,10 @@ const FileMessage = ({
               </audio>
             )}
           </div>
-          <FileActions />
+          <FileActions 
+            handleViewInNewTab={handleViewInNewTab}
+            handleFileDownload={handleFileDownload}
+            />
         </div>
       );
     }
@@ -330,7 +337,10 @@ const FileMessage = ({
             <Text typography="body2" as="span">{size}</Text>
           </div>
         </div>
-        <FileActions />
+        <FileActions 
+          handleViewInNewTab={handleViewInNewTab}
+          handleFileDownload={handleFileDownload}
+          />
       </div>
     );
   };

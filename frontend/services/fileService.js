@@ -104,13 +104,13 @@ class FileService {
   async uploadFile(file, onProgress) {
     const validationResult = await this.validateFile(file);
     if (!validationResult.success) return validationResult;
-
+  
     try {
       const user = authService.getCurrentUser();
-      if (!user?.token || user?.sessionId) {
+      if (!user?.token || !user?.sessionId) {
         return { success: false, message: '인증 정보가 없습니다.' };
       }
-
+  
       // STEP 1: presigned URL 요청
       const { data: presignedData } = await axios.post(`${this.baseUrl}/api/files/presigned-upload`, {
         originalname: file.name,
@@ -119,9 +119,9 @@ class FileService {
       }, {
         headers: this.getHeaders()
       });
-
+  
       const { uploadUrl, fileKey, fileUrl } = presignedData;
-
+  
       // STEP 2: S3에 직접 업로드
       await axios.put(uploadUrl, file, {
         headers: {
@@ -134,7 +134,7 @@ class FileService {
           }
         }
       });
-
+  
       // STEP 3: 메타데이터 등록 요청
       const { data: uploadResponse } = await axios.post(`${this.baseUrl}/api/files/upload`, {
         filename: fileKey.split('/').pop(),
@@ -146,14 +146,14 @@ class FileService {
       }, {
         headers: this.getHeaders()
       });
-
+  
       if (!uploadResponse.success) {
         return {
           success: false,
-          message: uploadResponse.message || '파일 업로드 실패',
+          message: uploadResponse.message || '파일 업로드 실패'
         };
       }
-
+  
       return {
         success: true,
         data: {
@@ -164,7 +164,7 @@ class FileService {
           }
         }
       };
-
+  
     } catch (error) {
       return this.handleUploadError(error);
     }

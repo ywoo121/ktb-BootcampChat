@@ -619,10 +619,10 @@ function ChatRoomsComponent() {
       });
       return;
     }
-
+  
     const targetRoom = rooms.find((room) => room._id === roomId);
     let password = "";
-
+  
     // 비밀번호 입력 받기 (비밀번호가 있는 방일 경우)
     if (targetRoom?.hasPassword) {
       password = prompt("비밀번호를 입력하세요");
@@ -631,9 +631,9 @@ function ChatRoomsComponent() {
         return;
       }
     }
-
+  
     setJoiningRoom(true);
-
+  
     try {
       const response = await axiosInstance.post(
         `/api/rooms/${roomId}/join`,
@@ -642,25 +642,29 @@ function ChatRoomsComponent() {
           timeout: 5000,
         }
       );
-
+  
       if (response.data.success) {
         router.push(`/chat?room=${roomId}`);
       }
-    } catch (error) {
-      console.error("Room join error:", error);
 
+    } catch (error) {
       let errorMessage = "입장에 실패했습니다.";
+      alert('비밀번호가 일치하지 않습니다')
+  
       if (error.response?.status === 404) {
         errorMessage = "채팅방을 찾을 수 없습니다.";
       } else if (error.response?.status === 403) {
         errorMessage = "비밀번호가 틀렸거나 입장 권한이 없습니다.";
+      } else if (error.response?.status === 401) {
+        errorMessage = "비밀번호가 틀렸거나 입장 권한이 없습니다.";
       }
-
-      setError({
-        title: "채팅방 입장 실패",
-        message: error.response?.data?.message || errorMessage,
-        type: "danger",
-      });
+  
+      // setError({
+      //   title: "채팅방 입장 실패",
+      //   message: error.response?.data?.message || errorMessage,
+      //   type: "danger",
+      // });
+  
     } finally {
       setJoiningRoom(false);
     }
