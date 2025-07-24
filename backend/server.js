@@ -27,7 +27,11 @@ const corsOptions = {
     'https://localhost:3001',
     'https://localhost:3002',
     'http://0.0.0.0:3000',
-    'https://0.0.0.0:3000'
+    'https://0.0.0.0:3000',
+    'https://chat.goorm-ktb-006.goorm.team',
+    'http://chat.goorm-ktb-006.goorm.team',
+    'https://api.chat.goorm-ktb-006.goorm.team',
+    'http://api.chat.goorm-ktb-006.goorm.team'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -71,7 +75,9 @@ app.get('/health', (req, res) => {
 });
 
 // API 라우트 마운트
+console.log('Mounting API routes...');
 app.use('/api', routes);
+console.log('API routes mounted successfully');
 
 // Socket.IO 설정
 const io = socketIO(server, { cors: corsOptions });

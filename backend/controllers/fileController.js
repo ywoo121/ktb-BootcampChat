@@ -29,7 +29,7 @@ const generateSafeFilename = (originalFilename) => {
   return `${timestamp}_${randomBytes}${ext}`;
 };
 
-// 개선된 파일 정보 조회 함수
+// 🚀 LEAN 최적화: 개선된 파일 정보 조회 함수
 const getFileFromRequest = async (req) => {
   try {
     const filename = req.params.filename;
@@ -51,22 +51,31 @@ const getFileFromRequest = async (req) => {
 
     await fsPromises.access(filePath, fs.constants.R_OK);
 
-    const file = await File.findOne({ filename: filename });
+    // 🚀 LEAN 최적화: 파일 정보 조회
+    const file = await File.findOne({ filename: filename })
+      .select('_id filename originalname mimetype size user uploadDate')
+      .lean();
+      
     if (!file) {
       throw new Error('File not found in database');
     }
 
-    // 채팅방 권한 검증을 위한 메시지 조회
-    const message = await Message.findOne({ file: file._id });
+    // 🚀 LEAN 최적화: 채팅방 권한 검증을 위한 메시지 조회
+    const message = await Message.findOne({ file: file._id })
+      .select('room')
+      .lean();
+      
     if (!message) {
       throw new Error('File message not found');
     }
 
-    // 사용자가 해당 채팅방의 참가자인지 확인
+    // 🚀 LEAN 최적화: 사용자가 해당 채팅방의 참가자인지 확인
     const room = await Room.findOne({
       _id: message.room,
       participants: req.user.id
-    });
+    })
+    .select('_id')
+    .lean();
 
     if (!room) {
       throw new Error('Unauthorized access');
@@ -140,7 +149,10 @@ exports.uploadFile = async (req, res) => {
 exports.downloadFile = async (req, res) => {
   try {
     const { file, filePath } = await getFileFromRequest(req);
-    const contentDisposition = file.getContentDisposition('attachment');
+    
+    // File 스키마에 getContentDisposition 메서드가 있다고 가정
+    // lean() 객체에서는 메서드 사용 불가하므로 직접 구현
+    const contentDisposition = `attachment; filename="${encodeURIComponent(file.originalname || file.filename)}"`;
 
     res.set({
       'Content-Type': file.mimetype,
@@ -173,14 +185,18 @@ exports.viewFile = async (req, res) => {
   try {
     const { file, filePath } = await getFileFromRequest(req);
 
-    if (!file.isPreviewable()) {
+    // 🚀 미리보기 가능한 파일 타입 체크 (lean() 객체에서는 메서드 사용 불가)
+    const previewableTypes = ['image/', 'text/', 'application/pdf'];
+    const isPreviewable = previewableTypes.some(type => file.mimetype.startsWith(type));
+    
+    if (!isPreviewable) {
       return res.status(415).json({
         success: false,
         message: '미리보기를 지원하지 않는 파일 형식입니다.'
       });
     }
 
-    const contentDisposition = file.getContentDisposition('inline');
+    const contentDisposition = `inline; filename="${encodeURIComponent(file.originalname || file.filename)}"`;
         
     res.set({
       'Content-Type': file.mimetype,
@@ -249,25 +265,29 @@ const handleFileError = (error, res) => {
   });
 };
 
+// 🚀 LEAN 최적화: 파일 삭제
 exports.deleteFile = async (req, res) => {
   try {
-    const file = await File.findById(req.params.id);
+    // 삭제 권한 확인을 위해 lean() 사용 (삭제 전 조회)
+    const fileInfo = await File.findById(req.params.id)
+      .select('_id filename user')
+      .lean();
     
-    if (!file) {
+    if (!fileInfo) {
       return res.status(404).json({
         success: false,
         message: '파일을 찾을 수 없습니다.'
       });
     }
 
-    if (file.user.toString() !== req.user.id) {
+    if (fileInfo.user.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: '파일을 삭제할 권한이 없습니다.'
       });
     }
 
-    const filePath = path.join(uploadDir, file.filename);
+    const filePath = path.join(uploadDir, fileInfo.filename);
 
     if (!isPathSafe(filePath, uploadDir)) {
       return res.status(403).json({
@@ -283,7 +303,8 @@ exports.deleteFile = async (req, res) => {
       console.error('File deletion error:', unlinkError);
     }
 
-    await file.deleteOne();
+    // 실제 삭제는 lean() 사용 불가하므로 findByIdAndDelete 사용
+    await File.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,
@@ -295,6 +316,42 @@ exports.deleteFile = async (req, res) => {
       success: false,
       message: '파일 삭제 중 오류가 발생했습니다.',
       error: error.message
+    });
+  }
+};
+
+// 🚀 추가: 사용자 파일 목록 조회 (lean() 최적화)
+exports.getUserFiles = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    // 🚀 LEAN 최적화: 사용자 파일 목록 조회
+    const files = await File.find({ user: req.user.id })
+      .select('_id filename originalname mimetype size uploadDate')
+      .sort({ uploadDate: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    const totalCount = await File.countDocuments({ user: req.user.id });
+
+    res.json({
+      success: true,
+      files: files,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        hasMore: skip + files.length < totalCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Get user files error:', error);
+    res.status(500).json({
+      success: false,
+      message: '파일 목록 조회 중 오류가 발생했습니다.'
     });
   }
 };

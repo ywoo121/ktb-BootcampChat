@@ -1,5 +1,5 @@
 // backend/utils/redisClient.js
-const Redis = require('redis');
+const Redis = require('ioredis');
 const { redisHost, redisPort } = require('../config/keys');
 
 class MockRedisClient {
@@ -63,9 +63,29 @@ class RedisClient {
     this.client = null;
     this.isConnected = false;
     this.connectionAttempts = 0;
-    this.maxRetries = 5;
-    this.retryDelay = 5000;
+    this.maxRetries = 3;
+    this.retryDelay = 2000;
     this.useMock = false;
+    this.initialized = false;
+  }
+
+  async initialize() {
+    if (this.initialized) {
+      return this.client;
+    }
+
+    try {
+      await this.connect();
+      this.initialized = true;
+      return this.client;
+    } catch (error) {
+      console.warn('Redis initialization failed, using mock client:', error.message);
+      this.client = new MockRedisClient();
+      this.isConnected = true;
+      this.useMock = true;
+      this.initialized = true;
+      return this.client;
+    }
   }
 
   async connect() {
@@ -83,44 +103,110 @@ class RedisClient {
     }
 
     try {
-      console.log('Connecting to Redis...');
+      console.log('Attempting to connect to Redis...');
 
-      this.client = Redis.createClient({
-        url: `redis://${redisHost}:${redisPort}`,
-        socket: {
+      // Redis Cluster 설정 체크
+      if (redisHost.includes(',')) {
+        console.log('Detected Redis Cluster configuration');
+
+        const redisHosts = redisHost.split(',').map(host => {
+          return { host: host.trim(), port: parseInt(redisPort) };
+        });
+
+        console.log('Redis Cluster hosts:', redisHosts);
+
+        this.client = new Redis.Cluster(redisHosts, {
+          redisOptions: {
+            connectTimeout: 2000,
+            commandTimeout: 2000,
+            retryDelayOnFailover: 100,
+            maxRetriesPerRequest: 2,
+          },
+          enableOfflineQueue: false,
+          retryDelayOnFailover: 100,
+          retryDelayOnClusterDown: 300,
+          maxRetriesPerRequest: 2,
+          scaleReads: 'slave',
+          clusterRetryDelayOnClusterDown: 300,
+          clusterRetryDelayOnFailover: 100,
+          lazyConnect: true
+        });
+
+        this.client.on('connect', () => {
+          console.log('Redis Cluster Connected');
+          this.isConnected = true;
+          this.connectionAttempts = 0;
+          this.useMock = false;
+        });
+
+        this.client.on('error', (err) => {
+          console.error('Redis Cluster Error:', err.message);
+          this.connectionAttempts++;
+
+          if (!this.useMock && this.connectionAttempts >= this.maxRetries) {
+            console.log('Max Redis reconnection attempts reached, switching to in-memory mock');
+            this.client = new MockRedisClient();
+            this.isConnected = true;
+            this.useMock = true;
+          }
+        });
+
+        this.client.on('node error', (err, node) => {
+          const nodeInfo = node?.options ? `${node.options.host}:${node.options.port}` : 'unknown node';
+          console.error(`Redis Node Error on ${nodeInfo}:`, err.message);
+        });
+
+        // 연결 테스트 (타임아웃 적용)
+        const connectTimeout = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Connection timeout')), 3000);
+        });
+
+        await Promise.race([
+          this.client.ping(),
+          connectTimeout
+        ]);
+
+        console.log('Redis Cluster ping successful');
+
+      } else {
+        // 단일 Redis 모드
+        console.log('Using single Redis instance');
+
+        this.client = new Redis({
           host: redisHost,
           port: redisPort,
-          connectTimeout: 5000,
-          reconnectStrategy: (retries) => {
-            if (retries > this.maxRetries) {
-              console.log('Max Redis reconnection attempts reached, switching to in-memory mock');
-              this.client = new MockRedisClient();
-              this.isConnected = true;
-              this.useMock = true;
-              return false;
-            }
-            return Math.min(retries * 50, 2000);
-          }
-        }
-      });
+          connectTimeout: 2000,
+          commandTimeout: 2000,
+          retryDelayOnFailover: 100,
+          maxRetriesPerRequest: 2,
+          lazyConnect: true
+        });
 
-      this.client.on('connect', () => {
-        console.log('Redis Client Connected');
-        this.isConnected = true;
-        this.connectionAttempts = 0;
-      });
-
-      this.client.on('error', (err) => {
-        console.error('Redis Client Error:', err.message);
-        if (!this.useMock) {
-          console.log('Switching to in-memory mock Redis');
-          this.client = new MockRedisClient();
+        this.client.on('connect', () => {
+          console.log('Redis Client Connected');
           this.isConnected = true;
-          this.useMock = true;
-        }
-      });
+          this.connectionAttempts = 0;
+          this.useMock = false;
+        });
 
-      await this.client.connect();
+        this.client.on('error', (err) => {
+          console.error('Redis Client Error:', err.message);
+          this.connectionAttempts++;
+
+          if (this.connectionAttempts >= this.maxRetries && !this.useMock) {
+            console.log('Switching to in-memory mock Redis');
+            this.client = new MockRedisClient();
+            this.isConnected = true;
+            this.useMock = true;
+          }
+        });
+
+        // 연결 테스트
+        await this.client.ping();
+        console.log('Redis ping successful');
+      }
+
+      this.isConnected = true;
       return this.client;
 
     } catch (error) {
@@ -133,14 +219,19 @@ class RedisClient {
     }
   }
 
+  async ensureConnection() {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    return this.client;
+  }
+
   async set(key, value, options = {}) {
     try {
-      if (!this.isConnected) {
-        await this.connect();
-      }
+      const client = await this.ensureConnection();
 
       if (this.useMock) {
-        return await this.client.set(key, value, options);
+        return await client.set(key, value, options);
       }
 
       let stringValue;
@@ -151,9 +242,9 @@ class RedisClient {
       }
 
       if (options.ttl) {
-        return await this.client.setEx(key, options.ttl, stringValue);
+        return await client.setEx(key, options.ttl, stringValue);
       }
-      return await this.client.set(key, stringValue);
+      return await client.set(key, stringValue);
     } catch (error) {
       console.error('Redis set error:', error);
       throw error;
@@ -162,15 +253,13 @@ class RedisClient {
 
   async get(key) {
     try {
-      if (!this.isConnected) {
-        await this.connect();
-      }
+      const client = await this.ensureConnection();
 
       if (this.useMock) {
-        return await this.client.get(key);
+        return await client.get(key);
       }
 
-      const value = await this.client.get(key);
+      const value = await client.get(key);
       if (!value) return null;
 
       try {
@@ -186,12 +275,10 @@ class RedisClient {
 
   async setEx(key, seconds, value) {
     try {
-      if (!this.isConnected) {
-        await this.connect();
-      }
+      const client = await this.ensureConnection();
 
       if (this.useMock) {
-        return await this.client.setEx(key, seconds, value);
+        return await client.setEx(key, seconds, value);
       }
 
       let stringValue;
@@ -201,19 +288,26 @@ class RedisClient {
         stringValue = String(value);
       }
 
-      return await this.client.setEx(key, seconds, stringValue);
+      return await client.setEx(key, seconds, stringValue);
     } catch (error) {
       console.error('Redis setEx error:', error);
+
+      // Fallback to mock if Redis fails
+      if (!this.useMock) {
+        console.log('Falling back to mock Redis client');
+        this.client = new MockRedisClient();
+        this.isConnected = true;
+        this.useMock = true;
+        return await this.client.setEx(key, seconds, value);
+      }
       throw error;
     }
   }
 
   async del(key) {
     try {
-      if (!this.isConnected) {
-        await this.connect();
-      }
-      return await this.client.del(key);
+      const client = await this.ensureConnection();
+      return await client.del(key);
     } catch (error) {
       console.error('Redis del error:', error);
       throw error;
@@ -222,10 +316,8 @@ class RedisClient {
 
   async expire(key, seconds) {
     try {
-      if (!this.isConnected) {
-        await this.connect();
-      }
-      return await this.client.expire(key, seconds);
+      const client = await this.ensureConnection();
+      return await client.expire(key, seconds);
     } catch (error) {
       console.error('Redis expire error:', error);
       throw error;
@@ -238,6 +330,7 @@ class RedisClient {
         await this.client.quit();
         this.isConnected = false;
         this.client = null;
+        this.initialized = false;
         console.log('Redis connection closed successfully');
       } catch (error) {
         console.error('Redis quit error:', error);

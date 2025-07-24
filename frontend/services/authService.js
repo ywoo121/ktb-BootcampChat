@@ -110,7 +110,7 @@ class AuthService {
 
   async login(credentials) {
     try {
-      const response = await axios.post(`${API_URL}/api/auth/login`, credentials);
+      const response = await api.post('/api/auth/login', credentials);
 
       if (response.data?.success && response.data?.token) {
         const userData = {
@@ -212,17 +212,7 @@ class AuthService {
         throw new Error('인증 정보가 없습니다.');
       }
 
-      const response = await axios.put(
-        `${API_URL}/api/users/profile`,
-        data,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-auth-token': user.token,
-            'x-session-id': user.sessionId
-          }
-        }
-      );
+      const response = await api.put('/api/users/profile', data);
 
       if (response.data?.success) {
         // 현재 사용자 정보 업데이트
@@ -266,20 +256,10 @@ class AuthService {
         throw new Error('인증 정보가 없습니다.');
       }
 
-      const response = await axios.put(
-        `${API_URL}/api/users/profile`,
-        {
-          currentPassword,
-          newPassword
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-auth-token': user.token,
-            'x-session-id': user.sessionId
-          }
-        }
-      );
+      const response = await api.put('/api/users/profile', {
+        currentPassword,
+        newPassword
+      });
 
       if (response.data?.success) {
         return true;
@@ -348,12 +328,7 @@ class AuthService {
         return true;
       }
 
-      const response = await axiosInstance.post('/api/auth/verify-token', {
-        headers: {
-          'x-auth-token': user.token,
-          'x-session-id': user.sessionId
-        }
-      });
+      const response = await api.post('/api/auth/verify-token');
 
       if (response.data.success) {
         // 토큰 검증 시간 업데이트

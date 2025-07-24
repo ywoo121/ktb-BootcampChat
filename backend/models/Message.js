@@ -90,14 +90,66 @@ const MessageSchema = new mongoose.Schema({
   }
 });
 
-// 복합 인덱스 설정
-MessageSchema.index({ room: 1, timestamp: -1 });
-MessageSchema.index({ room: 1, isDeleted: 1 });
-MessageSchema.index({ 'readers.userId': 1 });
-MessageSchema.index({ sender: 1 });
-MessageSchema.index({ type: 1 });
-MessageSchema.index({ timestamp: -1 });
-MessageSchema.index({ 'reactions.userId': 1 });
+// 🚀 MongoDB 인덱스 최적화
+// 메시지 조회 최적화 인덱스
+MessageSchema.index({ room: 1, timestamp: -1 }); // 채팅방별 시간순 조회
+MessageSchema.index({ room: 1, isDeleted: 1, timestamp: -1 }); // 삭제되지 않은 메시지 조회
+MessageSchema.index({ room: 1, type: 1, timestamp: -1 }); // 타입별 메시지 조회
+
+// 사용자별 메시지 조회 인덱스
+MessageSchema.index({ sender: 1, timestamp: -1 }); // 사용자가 보낸 메시지
+MessageSchema.index({ sender: 1, room: 1 }); // 특정 채팅방에서 사용자 메시지
+MessageSchema.index({ 'readers.userId': 1 }); // 읽음 상태 조회
+
+// 검색 최적화 인덱스
+MessageSchema.index({ content: 'text' }); // 메시지 내용 텍스트 검색
+MessageSchema.index({ 
+  room: 1, 
+  content: 'text' 
+}, { 
+  background: true,
+  name: 'message_search_idx'
+}); // 채팅방별 메시지 검색
+
+// 파일 메시지 조회 인덱스
+MessageSchema.index({ room: 1, file: 1 }); // 채팅방별 파일 메시지
+MessageSchema.index({ file: 1 }, { sparse: true }); // 파일별 메시지
+
+// 성능 최적화 인덱스
+MessageSchema.index({ 
+  timestamp: -1 
+}, { 
+  partialFilterExpression: { isDeleted: false },
+  name: 'active_messages_idx'
+}); // 삭제되지 않은 메시지만
+
+MessageSchema.index({
+  room: 1,
+  createdAt: -1
+}, {
+  background: true,
+  name: 'room_messages_idx'
+}); // 채팅방별 최신 메시지
+
+// AI 메시지 조회 인덱스
+MessageSchema.index({ 
+  type: 1, 
+  aiType: 1, 
+  timestamp: -1 
+}, { 
+  sparse: true,
+  name: 'ai_messages_idx'
+}); // AI 메시지 타입별 조회
+
+// 읽음 상태 최적화 인덱스
+MessageSchema.index({
+  room: 1,
+  'readers.userId': 1,
+  timestamp: -1
+}, {
+  background: true,
+  name: 'message_read_status_idx'
+});
 
 // 읽음 처리 Static 메소드 개선
 MessageSchema.statics.markAsRead = async function(messageIds, userId) {
