@@ -4,37 +4,21 @@ const s3UploadService = require('../../services/s3UploadService');
 const File = require('../../models/File');
 const path = require('path');
 const auth = require('../../middleware/auth');
+const mongoose = require('mongoose');
 
 /**
- * 파일 업로드 라우터
+ * 파일 업로드
  */
 router.post('/upload', auth, s3UploadService.multerConfig.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: '파일이 없습니다.' });
-    }
+    if (!req.file) return res.status(400).json({ error: '파일이 없습니다.' });
+    if (!req.user || !req.user.id) return res.status(401).json({ error: '인증이 필요합니다.' });
 
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({ error: '인증이 필요합니다.' });
-    }
-
-    console.log('파일 업로드 시작:', {
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      userId: req.user.id
-    });
-
-    // 1. S3에 파일 업로드
     const s3Result = await s3UploadService.uploadToS3(req.file, req.user.id);
-    console.log('S3 업로드 완료:', s3Result.s3Key);
-
-    // 2. S3 키에서 filename 추출 (일관성 유지)
     const filename = path.basename(s3Result.s3Key);
 
-    // 3. MongoDB에 파일 정보 저장
     const fileDocument = await File.create({
-      filename: filename,
+      filename,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
@@ -45,9 +29,6 @@ router.post('/upload', auth, s3UploadService.multerConfig.single('file'), async 
       etag: s3Result.etag
     });
 
-    console.log('DB 저장 완료:', fileDocument._id);
-
-    // 4. 응답
     res.json({
       success: true,
       message: '파일 업로드 완료',
@@ -62,47 +43,31 @@ router.post('/upload', auth, s3UploadService.multerConfig.single('file'), async 
         previewable: fileDocument.isPreviewable()
       }
     });
-
   } catch (error) {
     console.error('파일 업로드 오류:', error);
-    res.status(500).json({
-      error: '파일 업로드 실패',
-      message: error.message
-    });
+    res.status(500).json({ error: '파일 업로드 실패', message: error.message });
   }
 });
 
 /**
- * 대용량 파일 업로드 (멀티파트)
+ * 대용량 파일 업로드
  */
 router.post('/upload/large', auth, s3UploadService.multerConfig.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: '파일이 없습니다.' });
-    }
+    if (!req.file) return res.status(400).json({ error: '파일이 없습니다.' });
+    if (!req.user || !req.user.id) return res.status(401).json({ error: '인증이 필요합니다.' });
 
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({ error: '인증이 필요합니다.' });
-    }
+    const threshold = 50 * 1024 * 1024;
+    const useMultipart = req.file.size >= threshold;
 
-    // 파일 크기 체크 (50MB 이상만 멀티파트 사용)
-    const MULTIPART_THRESHOLD = 50 * 1024 * 1024; // 50MB
+    const s3Result = useMultipart
+        ? await s3UploadService.multipartUploadToS3(req.file, req.user.id)
+        : await s3UploadService.uploadToS3(req.file, req.user.id);
 
-    let s3Result;
-    if (req.file.size >= MULTIPART_THRESHOLD) {
-      console.log('멀티파트 업로드 시작:', req.file.originalname);
-      s3Result = await s3UploadService.multipartUploadToS3(req.file, req.user.id);
-    } else {
-      console.log('일반 업로드 사용:', req.file.originalname);
-      s3Result = await s3UploadService.uploadToS3(req.file, req.user.id);
-    }
-
-    // filename 생성
     const filename = path.basename(s3Result.s3Key);
 
-    // DB 저장
     const fileDocument = await File.create({
-      filename: filename,
+      filename,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
@@ -124,122 +89,77 @@ router.post('/upload/large', auth, s3UploadService.multerConfig.single('file'), 
         size: fileDocument.size,
         uploadDate: fileDocument.uploadDate,
         s3Key: fileDocument.s3Key,
-        multipartUsed: req.file.size >= MULTIPART_THRESHOLD
+        multipartUsed: useMultipart
       }
     });
-
   } catch (error) {
     console.error('대용량 파일 업로드 오류:', error);
-    res.status(500).json({
-      error: '대용량 파일 업로드 실패',
-      message: error.message
-    });
+    res.status(500).json({ error: '대용량 파일 업로드 실패', message: error.message });
   }
 });
 
 /**
- * 파일 조회 (서명된 URL)
+ * 파일 보기 - 파일 ID 또는 filename 모두 허용
  */
-router.get('/view/:fileId', auth, async (req, res) => {
+router.get('/view/:identifier', auth, async (req, res) => {
   try {
-    const fileDocument = await File.findById(req.params.fileId);
+    const { identifier } = req.params;
 
-    if (!fileDocument) {
-      return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    let fileDocument;
+    if (mongoose.Types.ObjectId.isValid(identifier)) {
+      fileDocument = await File.findById(identifier);
+    } else {
+      fileDocument = await File.findOne({ filename: identifier, user: req.user.id });
     }
 
-    // 권한 체크 (파일 소유자만 조회 가능)
-    if (fileDocument.user.toString() !== req.user.id) {
-      return res.status(403).json({ error: '파일 조회 권한이 없습니다.' });
-    }
+    if (!fileDocument) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    if (fileDocument.user.toString() !== req.user.id) return res.status(403).json({ error: '파일 조회 권한이 없습니다.' });
 
-    // 서명된 URL 생성 (1시간 유효)
     const viewUrl = s3UploadService.getSignedUrl(fileDocument.s3Key, 3600);
 
     res.json({
       success: true,
-      viewUrl: viewUrl,
+      viewUrl,
       filename: fileDocument.originalname,
       mimetype: fileDocument.mimetype,
       size: fileDocument.size,
       expires: '1시간'
     });
-
   } catch (error) {
     console.error('파일 조회 오류:', error);
-    res.status(500).json({
-      error: '파일 조회 실패',
-      message: error.message
-    });
+    res.status(500).json({ error: '파일 조회 실패', message: error.message });
   }
 });
 
 /**
- * 파일명으로 조회 (내부용) - 수정된 버전
+ * 파일 다운로드
  */
-router.get('/view/filename/:filename', auth, async (req, res) => {
+router.get('/download/:identifier', auth, async (req, res) => {
   try {
-    const filename = req.params.filename;
-    console.log('Looking for file with filename:', filename);
+    const { identifier } = req.params;
 
-    const fileDocument = await File.findOne({
-      filename: filename,
-      user: req.user.id
-    });
-
-    if (!fileDocument) {
-      console.log('File not found:', filename);
-      return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    let fileDocument;
+    if (mongoose.Types.ObjectId.isValid(identifier)) {
+      fileDocument = await File.findById(identifier);
+    } else {
+      fileDocument = await File.findOne({ filename: identifier, user: req.user.id });
     }
 
-    console.log('File found, generating signed URL for S3 key:', fileDocument.s3Key);
+    if (!fileDocument) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    if (fileDocument.user.toString() !== req.user.id) return res.status(403).json({ error: '다운로드 권한이 없습니다.' });
 
-    // 서명된 URL 생성 (1시간 유효)
-    const viewUrl = s3UploadService.getSignedUrl(fileDocument.s3Key, 3600);
-
-    console.log('Generated signed URL:', viewUrl);
-
-    // Content-Type 헤더 설정하여 리다이렉트
-    res.redirect(viewUrl);
-
-  } catch (error) {
-    console.error('파일 조회 오류:', error);
-    res.status(500).json({
-      error: '파일 조회 실패',
-      message: error.message
-    });
-  }
-});
-router.get('/download/:fileId', auth, async (req, res) => {
-  try {
-    const fileDocument = await File.findById(req.params.fileId);
-
-    if (!fileDocument) {
-      return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
-    }
-
-    // 권한 체크 (파일 소유자만 다운로드 가능)
-    if (fileDocument.user.toString() !== req.user.id) {
-      return res.status(403).json({ error: '다운로드 권한이 없습니다.' });
-    }
-
-    // 서명된 URL 생성 (1시간 유효)
-    const downloadUrl = fileDocument.getDownloadUrl(3600);
+    const downloadUrl = s3UploadService.getSignedUrl(fileDocument.s3Key, 3600);
 
     res.json({
       success: true,
-      downloadUrl: downloadUrl,
+      downloadUrl,
       filename: fileDocument.originalname,
       size: fileDocument.size,
       expires: '1시간'
     });
-
   } catch (error) {
     console.error('파일 다운로드 오류:', error);
-    res.status(500).json({
-      error: '파일 다운로드 실패',
-      message: error.message
-    });
+    res.status(500).json({ error: '파일 다운로드 실패', message: error.message });
   }
 });
 
@@ -250,34 +170,16 @@ router.delete('/:fileId', auth, async (req, res) => {
   try {
     const fileDocument = await File.findById(req.params.fileId);
 
-    if (!fileDocument) {
-      return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
-    }
+    if (!fileDocument) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    if (fileDocument.user.toString() !== req.user.id) return res.status(403).json({ error: '삭제 권한이 없습니다.' });
 
-    // 권한 체크
-    if (fileDocument.user.toString() !== req.user.id) {
-      return res.status(403).json({ error: '삭제 권한이 없습니다.' });
-    }
-
-    // S3에서 파일 삭제
     await s3UploadService.deleteFromS3(fileDocument.s3Key);
-    console.log('S3 파일 삭제 완료:', fileDocument.s3Key);
-
-    // DB에서 파일 정보 삭제
     await File.findByIdAndDelete(req.params.fileId);
-    console.log('DB 파일 정보 삭제 완료:', req.params.fileId);
 
-    res.json({
-      success: true,
-      message: '파일이 성공적으로 삭제되었습니다.'
-    });
-
+    res.json({ success: true, message: '파일이 성공적으로 삭제되었습니다.' });
   } catch (error) {
     console.error('파일 삭제 오류:', error);
-    res.status(500).json({
-      error: '파일 삭제 실패',
-      message: error.message
-    });
+    res.status(500).json({ error: '파일 삭제 실패', message: error.message });
   }
 });
 
@@ -290,13 +192,14 @@ router.get('/list', auth, async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const files = await File.find({ user: req.user.id })
+    const [files, total] = await Promise.all([
+      File.find({ user: req.user.id })
       .sort({ uploadDate: -1 })
       .skip(skip)
       .limit(limit)
-      .select('filename originalname mimetype size uploadDate s3Key');
-
-    const total = await File.countDocuments({ user: req.user.id });
+      .select('filename originalname mimetype size uploadDate s3Key'),
+      File.countDocuments({ user: req.user.id })
+    ]);
 
     res.json({
       success: true,
@@ -316,13 +219,9 @@ router.get('/list', auth, async (req, res) => {
         pages: Math.ceil(total / limit)
       }
     });
-
   } catch (error) {
     console.error('파일 목록 조회 오류:', error);
-    res.status(500).json({
-      error: '파일 목록 조회 실패',
-      message: error.message
-    });
+    res.status(500).json({ error: '파일 목록 조회 실패', message: error.message });
   }
 });
 
