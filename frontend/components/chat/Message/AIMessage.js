@@ -1,14 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PersistentAvatar from '../../common/PersistentAvatar';
 import MessageContent from './MessageContent';
 import MessageActions from './MessageActions';
 import ReadStatus from '../ReadStatus';
 import useTTSPlayer from '../../../hooks/useTTSPlayer';
 
-const AIMessage = ({ 
-  msg = {}, 
-  isStreaming = false,                   
-  isMine = false, 
+const AIMessage = ({
+  msg = {},
+  isStreaming = false,
+  isMine = false,
   currentUser = null,
   onReactionAdd,
   onReactionRemove,
@@ -24,10 +24,11 @@ const AIMessage = ({
     togglePlayback,
     isMessagePlaying,
     isMessageGenerating,
-    error: ttsError
-  } = useTTSPlayer({ 
-    socketRef, 
-    onError: (error) => console.error('TTS Error:', error) 
+    error: ttsError,
+    stopAudio
+  } = useTTSPlayer({
+    socketRef,
+    onError: (error) => console.error('TTS Error:', error)
   });
   const formattedTime = new Date(msg.timestamp).toLocaleString('ko-KR', {
     year: 'numeric',
@@ -46,17 +47,23 @@ const AIMessage = ({
     avatarInitial: msg.aiType === 'wayneAI' ? 'W' : 'C'
   };
 
+  const [buttonClicked, setButtonClicked] = useState(false);
+  const [cooldown, setCooldown] = useState(false);
+  const [buttonLocked, setButtonLocked] = useState(false);
+
   // Handle TTS playback
   const handleTTSClick = React.useCallback(() => {
+    if (buttonLocked || isMessageGenerating(msg._id) || isMessagePlaying(msg._id)) return;
+    setButtonLocked(true);
     if (!msg.content || isStreaming) return;
-    
+
     togglePlayback(msg.content, msg.aiType, msg._id);
-  }, [msg.content, msg.aiType, msg._id, isStreaming, togglePlayback]);
+  }, [buttonLocked, isMessageGenerating, isMessagePlaying, msg.content, msg.aiType, msg._id, isStreaming, togglePlayback]);
 
   // Get TTS button icon based on state
   const getTTSIcon = () => {
     const messageId = msg._id;
-    
+
     if (isMessageGenerating(messageId)) {
       return (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -109,10 +116,17 @@ const AIMessage = ({
     return <MessageContent content={msg.content} />;
   };
 
+  // Reset buttonLocked when TTS generation and playback are both finished
+  React.useEffect(() => {
+    if (!isMessageGenerating(msg._id) && !isMessagePlaying(msg._id)) {
+      setButtonLocked(false);
+    }
+  }, [isMessageGenerating(msg._id), isMessagePlaying(msg._id)]);
+
   return (
     <div className="message-group yours">
       <div className="message-sender-info">
-        <PersistentAvatar 
+        <PersistentAvatar
           user={aiUser}
           size="lg"
           showInitials={true}
@@ -125,17 +139,17 @@ const AIMessage = ({
         <div className="message-content">
           {renderContent()}
         </div>
-        
+
         {!isStreaming && (
           <div className="message-footer">
             <div className="message-time mr-3">
               {formattedTime}
             </div>
-            
+
             {/* TTS Playback Button */}
             <button
               onClick={handleTTSClick}
-              disabled={!msg.content || isStreaming}
+              disabled={buttonLocked || !msg.content || isStreaming || isMessageGenerating(msg._id) || isMessagePlaying(msg._id)}
               className="tts-button"
               aria-label={`${aiUser.name} 메시지 음성으로 듣기 (${getVoiceName()} 목소리)`}
               title={`${getVoiceName()} 목소리로 듣기`}
@@ -144,14 +158,15 @@ const AIMessage = ({
                 border: '1px solid var(--vapor-color-border)',
                 borderRadius: 'var(--vapor-radius-sm)',
                 padding: '4px 8px',
-                cursor: 'pointer',
+                cursor: buttonLocked || isMessageGenerating(msg._id) || isMessagePlaying(msg._id) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
                 fontSize: '12px',
                 color: 'var(--vapor-color-text-secondary)',
                 transition: 'all 0.2s ease',
-                marginRight: '8px'
+                marginRight: '8px',
+                opacity: buttonLocked || isMessageGenerating(msg._id) || isMessagePlaying(msg._id) ? 0.6 : 1
               }}
               onMouseEnter={(e) => {
                 if (!e.currentTarget.disabled) {
@@ -166,11 +181,14 @@ const AIMessage = ({
                 e.currentTarget.style.color = 'var(--vapor-color-text-secondary)';
               }}
             >
-              {getTTSIcon()}
-              <span>🔊</span>
+              {isMessageGenerating(msg._id) ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
+              ) : (
+                getTTSIcon()
+              )}
             </button>
 
-            <ReadStatus 
+            <ReadStatus
               messageType={msg.type}
               participants={room.participants}
               readers={msg.readers}
@@ -215,10 +233,10 @@ const AIMessage = ({
           }}>
             ⚠️ 음성 생성 실패: {ttsError}
           </div>
-        )}        
+        )}
       </div>
-      
-      <MessageActions 
+
+      <MessageActions
         messageId={msg._id}
         messageContent={msg.content}
         reactions={msg.reactions}

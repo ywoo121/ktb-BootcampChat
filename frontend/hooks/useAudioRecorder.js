@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
+import authService from '../services/authService';
 
-const useAudioRecorder = ({ 
-  onTranscription, 
-  onError, 
+const useAudioRecorder = ({
+  onTranscription,
+  onError,
   socketRef,
   chunkDuration = 3000, // Send chunks every 3 seconds
-  enableRealTimeTranscription = true 
+  enableRealTimeTranscription = true
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -24,6 +25,8 @@ const useAudioRecorder = ({
   const sequenceRef = useRef(0);
   const chunkIntervalRef = useRef(null);
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
   // Generate unique session ID for this recording session
   const generateSessionId = useCallback(() => {
     return `audio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -38,7 +41,7 @@ const useAudioRecorder = ({
 
       const permission = await navigator.permissions.query({ name: 'microphone' });
       setPermissionStatus(permission.state);
-      
+
       permission.onchange = () => {
         setPermissionStatus(permission.state);
       };
@@ -57,7 +60,7 @@ const useAudioRecorder = ({
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const analyser = audioContext.createAnalyser();
       const source = audioContext.createMediaStreamSource(stream);
-      
+
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.8;
       source.connect(analyser);
@@ -71,10 +74,10 @@ const useAudioRecorder = ({
 
         const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
         analyserRef.current.getByteFrequencyData(dataArray);
-        
+
         const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
         const normalizedLevel = Math.min(average / 128, 1);
-        
+
         setAudioLevel(normalizedLevel);
         animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
       };
@@ -117,15 +120,26 @@ const useAudioRecorder = ({
       formData.append('audio', audioBlob, 'recording.webm');
       formData.append('language', 'ko'); // Korean language
 
-      const response = await axios.post('/api/audio/stt', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      // Get auth headers
+      const user = authService.getCurrentUser();
+      const headers = {
+        'Content-Type': 'multipart/form-data',
+        ...(user?.token && { 'x-auth-token': user.token }),
+        ...(user?.sessionId && { 'x-session-id': user.sessionId }),
+      };
+
+      const response = await axios.post(`${API_BASE_URL}/api/audio/stt`, formData, {
+        headers,
         timeout: 30000 // 30 second timeout
       });
 
       if (response.data.transcription) {
-        onTranscription?.(response.data.transcription);
+        let transcription = response.data.transcription;
+        // Normalize Wayne AI mentions (add more variants)
+        transcription = transcription.replace(/(wayne\s*ai|웨인\s*에이아이|웨인ai|웨인 AI|웨인AI|웨인에이아이|웨인 에이 아이|wain\s*ai|wain ai|wain|웨인)/gi, '@Wayne AI');
+        // Normalize Consulting AI mentions
+        transcription = transcription.replace(/(consulting\s*ai|컨설팅\s*에이아이|컨설팅ai|컨설팅 AI|컨설팅AI)/gi, '@ConsultingAI');
+        onTranscription?.(transcription);
       }
 
     } catch (error) {
@@ -136,7 +150,7 @@ const useAudioRecorder = ({
     } finally {
       setIsTranscribing(false);
     }
-  }, [onTranscription, onError]);
+  }, [onTranscription, onError, API_BASE_URL]);
 
   // Start recording
   const startRecording = useCallback(async () => {

@@ -1,11 +1,12 @@
 import React from 'react';
 import { IconButton } from '@vapor-ui/core';
 import useAudioRecorder from '../../hooks/useAudioRecorder';
+import { Toast } from '../../components/Toast';
 
-const VoiceRecorder = ({ 
-  onTranscription, 
-  onError, 
-  socketRef, 
+const VoiceRecorder = ({
+  onTranscription,
+  onError,
+  socketRef,
   disabled = false,
   className = '',
   size = 'md'
@@ -24,6 +25,8 @@ const VoiceRecorder = ({
     socketRef,
     enableRealTimeTranscription: true
   });
+
+  const [showPermissionButton, setShowPermissionButton] = React.useState(false);
 
   // Handle transcription callback
   const handleTranscription = React.useCallback((text, isPartial = false) => {
@@ -136,19 +139,49 @@ const VoiceRecorder = ({
   // Handle click
   const handleClick = () => {
     if (disabled || isTranscribing) return;
-    
+
     if (permissionStatus === 'denied') {
+      Toast.error('마이크 권한이 필요합니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');
       onError?.('마이크 권한이 필요합니다. 브라우저 설정에서 마이크 권한을 허용해주세요.');
+      setShowPermissionButton(true);
       return;
     }
 
     toggleRecording();
   };
 
+  const handleRequestMicPermission = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      Toast.success('마이크 권한이 허용되었습니다!');
+      setShowPermissionButton(false);
+    } catch (err) {
+      Toast.error('마이크 권한 요청이 거부되었습니다. 브라우저 설정을 확인하세요.');
+      setShowPermissionButton(true);
+    }
+  };
+
   const buttonProps = getButtonProps();
 
   return (
     <div className={`voice-recorder ${className}`}>
+      {showPermissionButton && (
+        <button
+          onClick={handleRequestMicPermission}
+          style={{
+            marginBottom: 8,
+            padding: '6px 12px',
+            background: '#f59e42',
+            color: 'white',
+            border: 'none',
+            borderRadius: 4,
+            cursor: 'pointer',
+            fontWeight: 600
+          }}
+        >
+          마이크 권한 요청하기
+        </button>
+      )}
       <IconButton
         {...buttonProps}
         size={size}
@@ -169,31 +202,62 @@ const VoiceRecorder = ({
           }
         }}
       >
-        {getMicIcon()}
-        
-        {/* Audio level indicator */}
-        {isRecording && audioLevel > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: `${20 + audioLevel * 10}px`,
-              height: `${20 + audioLevel * 10}px`,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(255, 68, 68, 0.3)',
-              animation: 'pulse 0.5s infinite',
-              pointerEvents: 'none',
-              zIndex: -1
-            }}
-          />
-        )}
+        <span style={{ position: 'relative', display: 'inline-block' }}>
+          {getMicIcon()}
+          {/* Audio level indicator */}
+          {isRecording && audioLevel > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: `${20 + audioLevel * 10}px`,
+                height: `${20 + audioLevel * 10}px`,
+                borderRadius: '50%',
+                backgroundColor: 'rgba(255, 68, 68, 0.3)',
+                animation: 'pulse 0.5s infinite',
+                pointerEvents: 'none',
+                zIndex: -1
+              }}
+            />
+          )}
+          {/* Recording indicator */}
+          {isRecording && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '-8px',
+                right: '-8px',
+                width: '12px',
+                height: '12px',
+                backgroundColor: '#ff4444',
+                borderRadius: '50%',
+                animation: 'blink 1s infinite'
+              }}
+            />
+          )}
+          {/* Transcribing indicator */}
+          {isTranscribing && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '-8px',
+                right: '-8px',
+                width: '12px',
+                height: '12px',
+                backgroundColor: '#0066cc',
+                borderRadius: '50%',
+                animation: 'pulse 1s infinite'
+              }}
+            />
+          )}
+        </span>
       </IconButton>
 
       {/* Error indicator */}
       {error && (
-        <div 
+        <div
           style={{
             position: 'absolute',
             top: '100%',
@@ -211,38 +275,6 @@ const VoiceRecorder = ({
         >
           {error}
         </div>
-      )}
-
-      {/* Recording indicator */}
-      {isRecording && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '-8px',
-            right: '-8px',
-            width: '12px',
-            height: '12px',
-            backgroundColor: '#ff4444',
-            borderRadius: '50%',
-            animation: 'blink 1s infinite'
-          }}
-        />
-      )}
-
-      {/* Transcribing indicator */}
-      {isTranscribing && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '-8px',
-            right: '-8px',
-            width: '12px',
-            height: '12px',
-            backgroundColor: '#0066cc',
-            borderRadius: '50%',
-            animation: 'pulse 1s infinite'
-          }}
-        />
       )}
 
       <style jsx>{`

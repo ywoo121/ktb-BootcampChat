@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
+import authService from '../services/authService'; // or wherever your authService is
 
 const useTTSPlayer = ({ socketRef, onError }) => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -14,6 +15,8 @@ const useTTSPlayer = ({ socketRef, onError }) => {
   const gainNodeRef = useRef(null);
   const progressIntervalRef = useRef(null);
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
   // Initialize Web Audio API for better control
   const initializeAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -23,16 +26,43 @@ const useTTSPlayer = ({ socketRef, onError }) => {
     }
   }, []);
 
+  // Stop current audio playback
+  const stopAudio = useCallback((onStopped) => {
+    try {
+      if (sourceRef.current) {
+        sourceRef.current.stop();
+        sourceRef.current.disconnect();
+        sourceRef.current = null;
+      }
+
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+
+      setIsPlaying(false);
+      setCurrentMessageId(null);
+      setAudioProgress(0);
+      if (onStopped) onStopped();
+    } catch (error) {
+      console.error('Stop audio error:', error);
+    }
+  }, []);
+
   // Play audio from buffer
   const playAudioBuffer = useCallback(async (audioBuffer, messageId) => {
     try {
       initializeAudioContext();
-      
+
       // Stop any currently playing audio
       stopAudio();
 
       const source = audioContextRef.current.createBufferSource();
       source.buffer = audioBuffer;
+      if (!gainNodeRef.current && audioContextRef.current) {
+        gainNodeRef.current = audioContextRef.current.createGain();
+        gainNodeRef.current.connect(audioContextRef.current.destination);
+      }
       source.connect(gainNodeRef.current);
 
       sourceRef.current = source;
@@ -76,22 +106,34 @@ const useTTSPlayer = ({ socketRef, onError }) => {
       setIsPlaying(false);
       setCurrentMessageId(null);
     }
-  }, [initializeAudioContext, onError]);
+  }, [initializeAudioContext, onError, stopAudio]);
 
   // Fallback to HTTP API for TTS
   const fallbackToHttpTTS = useCallback(async (text, aiType, messageId) => {
     try {
       setIsGenerating(true);
 
-      const response = await axios.post('/api/audio/tts/stream', {
+      // Get auth headers
+      const user = authService.getCurrentUser();
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(user?.token && { 'x-auth-token': user.token }),
+        ...(user?.sessionId && { 'x-session-id': user.sessionId }),
+      };
+
+      const response = await axios.post(`${API_BASE_URL}/api/audio/tts/stream`, {
         text,
         aiType
       }, {
         responseType: 'arraybuffer',
-        timeout: 30000
+        timeout: 300000, // 5 minute timeout
+        headers,
       });
 
       initializeAudioContext();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
       const audioBuffer = await audioContextRef.current.decodeAudioData(response.data);
       await playAudioBuffer(audioBuffer, messageId);
 
@@ -102,7 +144,7 @@ const useTTSPlayer = ({ socketRef, onError }) => {
     } finally {
       setIsGenerating(false);
     }
-  }, [initializeAudioContext, playAudioBuffer, onError]);
+  }, [initializeAudioContext, playAudioBuffer, onError, API_BASE_URL]);
 
   // Play TTS via API call
   const playTTS = useCallback(async (text, aiType, messageId) => {
@@ -117,7 +159,7 @@ const useTTSPlayer = ({ socketRef, onError }) => {
           text,
           aiType
         });
-        
+
         // Set a timeout for socket response
         const socketTimeout = setTimeout(() => {
           // If socket doesn't respond in 2 seconds, fall back to HTTP API
@@ -132,7 +174,7 @@ const useTTSPlayer = ({ socketRef, onError }) => {
           if (data.messageId === messageId) {
             clearTimeout(originalTimeout);
             setIsGenerating(false);
-            
+
             try {
               // Convert base64 to audio buffer
               const binaryString = atob(data.audioData);
@@ -140,7 +182,10 @@ const useTTSPlayer = ({ socketRef, onError }) => {
               for (let i = 0; i < binaryString.length; i++) {
                 bytes[i] = binaryString.charCodeAt(i);
               }
-              
+
+              if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+              }
               audioContextRef.current.decodeAudioData(bytes.buffer)
                 .then(audioBuffer => {
                   playAudioBuffer(audioBuffer, messageId);
@@ -183,29 +228,6 @@ const useTTSPlayer = ({ socketRef, onError }) => {
       setIsGenerating(false);
     }
   }, [socketRef, onError, playAudioBuffer, fallbackToHttpTTS]);
-
-  // Stop current audio playback
-  const stopAudio = useCallback(() => {
-    try {
-      if (sourceRef.current) {
-        sourceRef.current.stop();
-        sourceRef.current.disconnect();
-        sourceRef.current = null;
-      }
-
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-
-      setIsPlaying(false);
-      setCurrentMessageId(null);
-      setAudioProgress(0);
-
-    } catch (error) {
-      console.error('Stop audio error:', error);
-    }
-  }, []);
 
   // Set volume
   const setVolume = useCallback((volume) => {
