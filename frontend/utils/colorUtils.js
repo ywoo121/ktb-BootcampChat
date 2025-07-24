@@ -13,11 +13,11 @@ const AI_COLORS = {
     backgroundColor: "#00C853",
     color: "#FFFFFF",
   },
-  taxAI: {
+  summaryAI: {
     backgroundColor: "#E6A545",
     color: "#FFFFFF",
   },
-  algorithmAI: {
+  kocoAI: {
     backgroundColor: "#7E57C2",
     color: "#FFFFFF",
   },
@@ -51,11 +51,11 @@ export const getAIAvatarStyles = (aiName) => {
   if (formattedName === "consultingai") {
     return AI_COLORS.consultingAI;
   }
-  if (formattedName === "taxai") {
-    return AI_COLORS.taxAI;
+  if (formattedName === "summaryai") {
+    return AI_COLORS.summaryAI;
   }
-  if (formattedName === "algorithmai") {
-    return AI_COLORS.algorithmAI;
+  if (formattedName === "kocoai") {
+    return AI_COLORS.kocoAI;
   }
   // 알 수 없는 AI의 경우 기본값 반환
   return AI_COLORS.wayneAI;
@@ -74,13 +74,13 @@ export const generateColorFromEmail = (email) => {
     globalColorCache.set(email, AI_COLORS.consultingAI.backgroundColor);
     return AI_COLORS.consultingAI.backgroundColor;
   }
-  if (email.endsWith("@tax.ai")) {
-    globalColorCache.set(email, AI_COLORS.taxAI.backgroundColor);
-    return AI_COLORS.taxAI.backgroundColor;
+  if (email.endsWith("@summary.ai")) {
+    globalColorCache.set(email, AI_COLORS.summaryAI.backgroundColor);
+    return AI_COLORS.summaryAI.backgroundColor;
   }
-  if (email.endsWith("@algorithm.ai")) {
-    globalColorCache.set(email, AI_COLORS.algorithmAI.backgroundColor);
-    return AI_COLORS.algorithmAI.backgroundColor;
+  if (email.endsWith("@koco.ai")) {
+    globalColorCache.set(email, AI_COLORS.kocoAI.backgroundColor);
+    return AI_COLORS.kocoAI.backgroundColor;
   }
   // 해시 생성
   let hash = 0;

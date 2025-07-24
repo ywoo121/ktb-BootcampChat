@@ -562,6 +562,16 @@ module.exports = function (io) {
 
         io.to(room).emit("message", message);
 
+        // 방 히스토리에 기록 추가
+        if (message.type === "text") {
+          aiService.addRoomHistory(
+          room,
+          "user",
+          message.content || ""
+          );
+        }
+        
+
         // AI 멘션이 있는 경우 AI 응답 생성
         if (aiMentions.length > 0) {
           for (const ai of aiMentions) {
@@ -843,9 +853,9 @@ module.exports = function (io) {
   function extractAIMentions(content) {
     if (!content) return [];
 
-    const aiTypes = ["wayneAI", "consultingAI", "taxAI", "algorithmAI"];
+    const aiTypes = ["wayneAI", "consultingAI", "summaryAI", "kocoAI"];
     const mentions = new Set();
-    const mentionRegex = /@(wayneAI|consultingAI|taxAI|algorithmAI)\b/g;
+    const mentionRegex = /@(wayneAI|consultingAI|summaryAI|kocoAI)\b/g;
     let match;
 
     while ((match = mentionRegex.exec(content)) !== null) {
@@ -971,7 +981,9 @@ module.exports = function (io) {
             error: error.message,
           });
         },
-      });
+      },
+      room
+      );
     } catch (error) {
       streamingSessions.delete(messageId);
       console.error("AI service error:", error);

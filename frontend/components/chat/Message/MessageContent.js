@@ -35,7 +35,7 @@ const MessageContent = ({ content, isAI = false }) => {
 
   // 멘션 패턴을 찾아서 React 엘리먼트로 변환하는 함수
   const renderContentWithMentions = useMemo(() => (text) => {
-    const mentionPattern = /@(wayneAI|consultingAI|taxAI|algorithmAI|[\w.-]+)/g;
+    const mentionPattern = /@(wayneAI|consultingAI|summaryAI|kocoAI|[\w.-]+)/g;
     const parts = [];
     let lastIndex = 0;
     let match;
@@ -53,8 +53,8 @@ const MessageContent = ({ content, isAI = false }) => {
       const isAIMention =
         mentionedName === 'wayneAI' ||
         mentionedName === 'consultingAI' ||
-        mentionedName === 'taxAI' ||
-        mentionedName === 'algorithmAI';
+        mentionedName === 'summaryAI' ||
+        mentionedName === 'kocoAI';
 
       const displayName = isAIMention
         ? (
@@ -62,10 +62,10 @@ const MessageContent = ({ content, isAI = false }) => {
               ? 'Wayne AI'
               : mentionedName === 'consultingAI'
                 ? 'Consulting AI'
-                : mentionedName === 'taxAI'
-                ? 'Tax AI'
-                : mentionedName === 'algorithmAI'
-                ? 'Algorithm AI'
+                : mentionedName === 'summaryAI'
+                ? 'Summary AI'
+                : mentionedName === 'kocoAI'
+                ? 'Koco AI'
                 : 'Wayne AI'
           )
         : mentionedName;
@@ -76,10 +76,10 @@ const MessageContent = ({ content, isAI = false }) => {
               ? 'mention mention-bot mention-wayne'
               : mentionedName === 'consultingAI'
                 ? 'mention mention-bot mention-consulting'
-                : mentionedName === 'taxAI'
-                ? 'mention mention-bot mention-tax'
-                : mentionedName === 'algorithmAI'
-                ? 'mention mention-bot mention-algorithm'
+                : mentionedName === 'summaryAI'
+                ? 'mention mention-bot mention-summary'
+                : mentionedName === 'kocoAI'
+                ? 'mention mention-bot mention-koco'
                 : 'mention mention-bot mention-wayne'
           )
         : 'mention mention-user';
