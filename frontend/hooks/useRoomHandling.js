@@ -66,7 +66,10 @@ export const useRoomHandling = (
     
     if (mountedRef.current) {
       await authService.logout();
-      router.replace('/?redirect=' + router.asPath);
+      // router.replace('/?redirect=' + router.asPath); // ❌ 무한 루프 방지: 리다이렉트하지 않음
+      if (typeof setError === 'function') {
+        setError('세션이 만료되었습니다. 다시 로그인 해주세요.');
+      }
     }
     return false;
   };
