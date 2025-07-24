@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const mongoose = require('mongoose');
 const http = require('http');
 const socketIO = require('socket.io');
 const path = require('path');
@@ -103,18 +102,10 @@ app.use((err, req, res, next) => {
 });
 
 // 서버 시작
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('MongoDB Connected');
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log('Environment:', process.env.NODE_ENV);
-      console.log('API Base URL:', `http://0.0.0.0:${PORT}/api`);
-    });
-  })
-  .catch(err => {
-    console.error('Server startup error:', err);
-    process.exit(1);
-  });
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('Environment:', process.env.NODE_ENV);
+  console.log('API Base URL:', `http://0.0.0.0:${PORT}/api`);
+});
 
 module.exports = { app, server };

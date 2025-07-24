@@ -1,6 +1,3 @@
-const File = require('../models/File');
-const Message = require('../models/Message');
-const Room = require('../models/Room');
 const { processFileForRAG } = require('../services/fileService');
 const path = require('path');
 const fs = require('fs');
@@ -56,28 +53,12 @@ const getFileFromRequest = async (req) => {
 
     await fsPromises.access(filePath, fs.constants.R_OK);
 
-    const file = await File.findOne({ filename: filename });
-    if (!file) {
+    const fileMeta = await redisClient.get(`file:${filename}`);
+    if (!fileMeta) {
       throw new Error('File not found in database');
     }
 
-    // 채팅방 권한 검증을 위한 메시지 조회
-    const message = await Message.findOne({ file: file._id });
-    if (!message) {
-      throw new Error('File message not found');
-    }
-
-    // 사용자가 해당 채팅방의 참가자인지 확인
-    const room = await Room.findOne({
-      _id: message.room,
-      participants: req.user.id
-    });
-
-    if (!room) {
-      throw new Error('Unauthorized access');
-    }
-
-    return { file, filePath };
+    return { fileMeta, filePath };
   } catch (error) {
     console.error('getFileFromRequest error:', {
       filename: req.params.filename,

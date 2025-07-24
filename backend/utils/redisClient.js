@@ -247,4 +247,52 @@ class RedisClient {
 }
 
 const redisClient = new RedisClient();
-module.exports = redisClient;
+
+// 유저 CRUD
+async function createUser(user) {
+  await redisClient.set(`user:${user.id}`, user);
+  await redisClient.set(`email:${user.email}`, user.id);
+}
+async function getUserById(userId) {
+  const data = await redisClient.get(`user:${userId}`);
+  return data;
+}
+async function getUserByEmail(email) {
+  const userId = await redisClient.get(`email:${email}`);
+  return userId ? getUserById(userId) : null;
+}
+
+// 방 CRUD
+async function createRoom(room) {
+  await redisClient.set(`room:${room.id}`, room);
+  await redisClient.lpush('rooms', room.id);
+}
+async function getRoom(roomId) {
+  const data = await redisClient.get(`room:${roomId}`);
+  return data;
+}
+async function listRooms() {
+  const ids = await redisClient.client.lRange('rooms', 0, -1);
+  return Promise.all(ids.map(getRoom));
+}
+
+// 메시지 CRUD
+async function addMessage(roomId, message) {
+  await redisClient.client.rPush(`room:${roomId}:messages`, JSON.stringify(message));
+}
+async function getMessages(roomId, start = 0, end = -1) {
+  const data = await redisClient.client.lRange(`room:${roomId}:messages`, start, end);
+  return data.map(JSON.parse);
+}
+
+module.exports = {
+  ...module.exports,
+  createUser,
+  getUserById,
+  getUserByEmail,
+  createRoom,
+  getRoom,
+  listRooms,
+  addMessage,
+  getMessages
+};

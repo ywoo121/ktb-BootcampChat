@@ -22,15 +22,6 @@ services:
     networks:
       - app-network
 
-  mongo:
-    image: mongo:7.0
-    container_name: mongo
-    restart: always
-    ports:
-      - "27017:27017"
-    networks:
-      - app-network
-
 networks:
   app-network:
     driver: bridge
