@@ -300,6 +300,8 @@ module.exports = {
   set: (...args) => redisClient.set(...args),
   setEx: (...args) => redisClient.setEx(...args),
   setJson,
+  del: (...args) => redisClient.del(...args),
+  expire: (...args) => redisClient.expire(...args),
   createUser,
   getUserById,
   getUserByEmail,
