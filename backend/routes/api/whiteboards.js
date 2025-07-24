@@ -11,9 +11,7 @@ try {
   Whiteboard = require("../../models/Whiteboard");
   WhiteboardDrawing = require("../../models/WhiteboardDrawing");
   useDatabase = true;
-  console.log("✅ Using MongoDB for whiteboards with persistent drawings");
 } catch (error) {
-  console.log("⚠️ Whiteboard models not found, using memory storage");
   useDatabase = false;
 }
 
@@ -23,8 +21,6 @@ let tempWhiteboards = [];
 // 화이트보드 목록 조회
 router.get("/", auth, async (req, res) => {
   try {
-    console.log("📋 GET /api/whiteboards called by user:", req.user.id);
-
     const page = Math.max(0, parseInt(req.query.page) || 0);
     const pageSize = Math.min(
       Math.max(1, parseInt(req.query.pageSize) || 10),
@@ -115,7 +111,6 @@ router.get("/", auth, async (req, res) => {
 // 화이트보드 생성
 router.post("/", auth, async (req, res) => {
   try {
-    console.log("🆕 POST /api/whiteboards called by user:", req.user.id);
     const { name, password } = req.body;
 
     if (!name?.trim()) {
@@ -181,10 +176,6 @@ router.post("/", auth, async (req, res) => {
       };
 
       tempWhiteboards.unshift(newWhiteboard);
-      console.log(
-        "💾 Saved to memory. Total whiteboards:",
-        tempWhiteboards.length
-      );
 
       res.status(201).json({
         success: true,
@@ -206,12 +197,6 @@ router.post("/", auth, async (req, res) => {
 // 화이트보드 입장
 router.post("/:whiteboardId/join", auth, async (req, res) => {
   try {
-    console.log(
-      "🚪 POST /api/whiteboards/:id/join called by user:",
-      req.user.id
-    );
-    console.log("📋 Whiteboard ID:", req.params.whiteboardId);
-
     const { password } = req.body;
 
     if (useDatabase) {
@@ -266,12 +251,6 @@ router.post("/:whiteboardId/join", auth, async (req, res) => {
         (wb) => wb._id === req.params.whiteboardId
       );
 
-      console.log("🔍 Looking for whiteboard:", req.params.whiteboardId);
-      console.log(
-        "📊 Available whiteboards:",
-        tempWhiteboards.map((wb) => wb._id)
-      );
-
       if (!whiteboard) {
         return res.status(404).json({
           success: false,
@@ -298,10 +277,6 @@ router.post("/:whiteboardId/join", auth, async (req, res) => {
           email: "current@test.com",
         });
         whiteboard.participantsCount = whiteboard.participants.length;
-        console.log(
-          "👥 Added user to participants. New count:",
-          whiteboard.participantsCount
-        );
       }
 
       res.json({
@@ -458,10 +433,6 @@ router.delete("/:whiteboardId", auth, async (req, res) => {
       whiteboard: whiteboardId,
     });
     await whiteboard.deleteOne();
-
-    console.log(
-      `🗑️ Deleted whiteboard ${whiteboardId} and ${drawingsResult.deletedCount} drawings`
-    );
 
     res.json({
       success: true,

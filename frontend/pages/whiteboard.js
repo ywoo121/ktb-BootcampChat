@@ -37,8 +37,6 @@ function WhiteboardPage() {
         process.env.NEXT_PUBLIC_API_URL ||
         "http://localhost:5000";
 
-      console.log("🔌 Connecting to whiteboard socket:", socketUrl);
-
       socketRef.current = io(`${socketUrl}/whiteboard`, {
         auth: {
           token: currentUser.token,
@@ -50,7 +48,6 @@ function WhiteboardPage() {
 
       // 연결 이벤트
       socketRef.current.on("connect", () => {
-        console.log("✅ Whiteboard socket connected:", socketRef.current.id);
         setConnected(true);
         setIsLoading(true);
 
@@ -60,7 +57,6 @@ function WhiteboardPage() {
 
       // 화이트보드 상태 수신 (저장된 데이터 포함)
       socketRef.current.on("whiteboardState", (data) => {
-        console.log("📋 Received whiteboard state:", data);
         setUsers(data.users);
         setStats(
           data.stats || { totalPaths: 0, totalPoints: 0, contributors: [] }
@@ -68,10 +64,7 @@ function WhiteboardPage() {
 
         // 저장된 그리기 데이터 복원
         if (data.drawings && data.drawings.length > 0) {
-          console.log(`🎨 Restoring ${data.drawings.length} saved drawings...`);
           restoreDrawings(data.drawings);
-        } else {
-          console.log("📄 No saved drawings found, starting with clean canvas");
         }
 
         setIsLoading(false);
@@ -79,18 +72,13 @@ function WhiteboardPage() {
 
       // 실시간 그리기 수신
       socketRef.current.on("drawing", (drawingData) => {
-        console.log("🎨 Received real-time drawing:", drawingData);
         drawOnCanvas(drawingData);
       });
 
       // 사용자 관련 이벤트
-      socketRef.current.on("userJoined", (userInfo) => {
-        console.log("👋 User joined:", userInfo.userName);
-      });
+      socketRef.current.on("userJoined", (userInfo) => {});
 
-      socketRef.current.on("userLeft", (userInfo) => {
-        console.log("👋 User left:", userInfo.userName);
-      });
+      socketRef.current.on("userLeft", (userInfo) => {});
 
       socketRef.current.on("usersUpdate", (usersList) => {
         setUsers(usersList);
@@ -98,7 +86,6 @@ function WhiteboardPage() {
 
       // 캔버스 지우기
       socketRef.current.on("canvasCleared", (data) => {
-        console.log("🧹 Canvas cleared by:", data.clearedBy);
         clearCanvas();
         setStats({ totalPaths: 0, totalPoints: 0, contributors: [] });
       });
@@ -115,7 +102,6 @@ function WhiteboardPage() {
       });
 
       socketRef.current.on("disconnect", (reason) => {
-        console.log("🔌 Socket disconnected:", reason);
         setConnected(false);
       });
 
@@ -156,8 +142,6 @@ function WhiteboardPage() {
         ctx.stroke();
       }
     });
-
-    console.log(`✅ Restored ${savedDrawings.length} drawing paths`);
   }, []);
 
   // 실시간 캔버스에 그리기
@@ -361,27 +345,6 @@ function WhiteboardPage() {
             gap: "var(--vapor-space-200)",
           }}
         >
-          {/* 로딩 상태 */}
-          {isLoading && (
-            <Box
-              style={{
-                textAlign: "center",
-                padding: "20px",
-                backgroundColor: "#f0f8ff",
-                borderRadius: "8px",
-                border: "2px dashed #4A90E2",
-              }}
-            >
-              <Text typography="body1">🎨 화이트보드를 불러오는 중...</Text>
-              <Text
-                typography="body2"
-                style={{ marginTop: "5px", color: "#666" }}
-              >
-                저장된 그림을 복원하고 있습니다.
-              </Text>
-            </Box>
-          )}
-
           {/* 연결된 사용자 목록 */}
           {users.length > 0 && (
             <Box
@@ -536,7 +499,7 @@ function WhiteboardPage() {
             <canvas
               ref={canvasRef}
               width={1200}
-              height={600}
+              height={800}
               style={{
                 width: "100%",
                 height: "100%",

@@ -38,8 +38,6 @@ module.exports = function (io) {
         email: user.email,
         sessionId: sessionId,
       };
-
-      console.log("🎨 Whiteboard user authenticated:", socket.user.name);
       next();
     } catch (error) {
       console.error("❌ Whiteboard authentication error:", error);
@@ -48,19 +46,9 @@ module.exports = function (io) {
   });
 
   whiteboardNamespace.on("connection", (socket) => {
-    console.log(
-      "🎨 Whiteboard socket connected:",
-      socket.id,
-      socket.user?.name
-    );
-
     // 화이트보드 방 입장
     socket.on("joinWhiteboard", async (whiteboardId) => {
       try {
-        console.log(
-          `🚪 User ${socket.user.name} joining whiteboard ${whiteboardId}`
-        );
-
         // 기존 방에서 나가기
         if (socket.currentWhiteboard) {
           await leaveWhiteboardRoom(socket);
@@ -107,10 +95,6 @@ module.exports = function (io) {
           }
         );
 
-        console.log(
-          `📚 Loaded ${savedDrawings.length} saved drawings for whiteboard ${whiteboardId}`
-        );
-
         // 현재 화이트보드 상태 전송 (저장된 데이터 포함)
         socket.emit("whiteboardState", {
           whiteboardId,
@@ -126,10 +110,6 @@ module.exports = function (io) {
         whiteboardNamespace
           .to(whiteboardId)
           .emit("usersUpdate", whiteboardData.users);
-
-        console.log(
-          `✅ User ${socket.user.name} joined whiteboard ${whiteboardId}. Total users: ${whiteboardData.users.length}`
-        );
       } catch (error) {
         console.error("❌ Join whiteboard error:", error);
         socket.emit("error", { message: "화이트보드 입장에 실패했습니다." });
@@ -182,10 +162,6 @@ module.exports = function (io) {
 
           await newPath.save();
           activePaths.set(pathId, newPath);
-
-          console.log(
-            `🎨 Started new path ${pathId} for user ${socket.user.name}`
-          );
         } else if (drawingData.type === "draw") {
           // 기존 패스에 포인트 추가
           const activePath = activePaths.get(pathId);
@@ -223,10 +199,6 @@ module.exports = function (io) {
 
             await activePath.save();
             activePaths.delete(pathId);
-
-            console.log(
-              `✅ Completed path ${pathId} with ${activePath.points.length} points`
-            );
           }
         }
 
@@ -270,10 +242,6 @@ module.exports = function (io) {
           timestamp: Date.now(),
           deletedCount: result.deletedCount,
         });
-
-        console.log(
-          `🧹 Canvas cleared by ${socket.user.name} in whiteboard ${whiteboardId}. Deleted ${result.deletedCount} paths`
-        );
       } catch (error) {
         console.error("❌ Clear canvas error:", error);
         socket.emit("error", { message: "캔버스 지우기에 실패했습니다." });
@@ -303,10 +271,6 @@ module.exports = function (io) {
 
     // 연결 해제
     socket.on("disconnect", async (reason) => {
-      console.log(
-        `🔌 Whiteboard socket disconnected: ${socket.id} - ${reason}`
-      );
-
       if (socket.currentWhiteboard) {
         await leaveWhiteboardRoom(socket);
       }
@@ -322,7 +286,6 @@ module.exports = function (io) {
               path.isComplete = true;
               path.endTime = new Date();
               await path.save();
-              console.log(`💾 Auto-saved incomplete path ${pathId}`);
             }
           } catch (error) {
             console.error("❌ Auto-save path error:", error);
@@ -354,10 +317,6 @@ module.exports = function (io) {
           .to(whiteboardId)
           .emit("usersUpdate", whiteboardData.users);
 
-        console.log(
-          `👋 User ${socket.user.name} left whiteboard ${whiteboardId}. Remaining users: ${whiteboardData.users.length}`
-        );
-
         // 빈 화이트보드 메모리 정리 (데이터는 DB에 영구 저장됨)
         if (whiteboardData.users.length === 0) {
           setTimeout(() => {
@@ -365,9 +324,6 @@ module.exports = function (io) {
               const currentData = activeWhiteboards.get(whiteboardId);
               if (currentData.users.length === 0) {
                 activeWhiteboards.delete(whiteboardId);
-                console.log(
-                  `🗑️ Cleaned up empty whiteboard memory ${whiteboardId}`
-                );
               }
             }
           }, 10 * 60 * 1000); // 10분 후 메모리 정리
@@ -416,11 +372,7 @@ module.exports = function (io) {
       0
     );
     const totalPaths = await WhiteboardDrawing.countDocuments();
-    console.log(
-      `📊 Whiteboard Stats - Active boards: ${activeWhiteboards.size}, Users: ${totalUsers}, Total paths in DB: ${totalPaths}, Active paths: ${activePaths.size}`
-    );
   }, 5 * 60000); // 5분마다
 
-  console.log("✅ Persistent Whiteboard socket handler initialized");
   return whiteboardNamespace;
 };
