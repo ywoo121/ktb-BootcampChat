@@ -30,6 +30,140 @@ module.exports = function(io) {
     });
   };
 
+  // Redis 캐싱 함수들 추가
+  const getCachedRecentMessages = async (roomId) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      const cached = await redisClient.get(cacheKey);
+      
+      if (cached) {
+        logDebug('cache hit for recent messages', { roomId });
+        return cached;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Cache get error:', error);
+      return null;
+    }
+  };
+
+  const cacheRecentMessages = async (roomId, messageData) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      await redisClient.setEx(cacheKey, 300, messageData); // 5분 캐싱
+      
+      logDebug('cached recent messages', { 
+        roomId, 
+        messageCount: messageData.messages?.length || 0 
+      });
+    } catch (error) {
+      console.error('Cache set error:', error);
+    }
+  };
+
+  const invalidateRoomCache = async (roomId) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      await redisClient.del(cacheKey);
+      logDebug('cache invalidated', { roomId });
+    } catch (error) {
+      console.error('Cache invalidation error:', error);
+    }
+  };
+
+  // 캐시에 새 메시지 추가 (무효화 대신)
+  const updateCacheWithNewMessage = async (roomId, newMessage) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      const cachedData = await redisClient.get(cacheKey);
+      
+      if (cachedData && cachedData.messages) {
+        // 기존 캐시에 새 메시지 추가
+        const updatedMessages = [...cachedData.messages, newMessage];
+        
+        // 최대 15개까지만 유지 (오래된 것 제거)
+        if (updatedMessages.length > 15) {
+          updatedMessages.shift(); // 첫 번째(가장 오래된) 메시지 제거
+        }
+        
+        const updatedData = {
+          ...cachedData,
+          messages: updatedMessages,
+          hasMore: true, // 새 메시지가 추가되었으므로 더 있을 가능성
+          oldestTimestamp: updatedMessages[0]?.timestamp
+        };
+        
+        // 캐시 업데이트 (TTL 갱신)
+        await redisClient.setEx(cacheKey, 300, updatedData);
+        
+        logDebug('cache updated with new message', { 
+          roomId, 
+          messageCount: updatedMessages.length,
+          messageType: newMessage.type
+        });
+      } else {
+        logDebug('no cache to update', { roomId });
+      }
+    } catch (error) {
+      console.error('Cache update error:', error);
+      // 업데이트 실패 시 캐시 무효화
+      await invalidateRoomCache(roomId);
+    }
+  };
+
+  // 배치 읽음 상태 업데이트
+  const batchUpdateReadStatus = async (userId, roomId, messageIds) => {
+    const updateKey = `read_update:${userId}:${roomId}`;
+    
+    try {
+      // 기존 대기 중인 업데이트와 병합
+      const existingUpdate = await redisClient.get(updateKey);
+      const allMessageIds = existingUpdate 
+        ? [...new Set([...existingUpdate, ...messageIds])]
+        : messageIds;
+      
+      // 3초 후 일괄 처리하도록 스케줄링
+      await redisClient.setEx(updateKey, 3, allMessageIds);
+      
+      // 3초 후 실제 업데이트 실행
+      setTimeout(async () => {
+        try {
+          const pendingIds = await redisClient.get(updateKey);
+          if (pendingIds && Array.isArray(pendingIds)) {
+            await Message.updateMany(
+              {
+                _id: { $in: pendingIds },
+                room: roomId,
+                'readers.userId': { $ne: userId }
+              },
+              {
+                $push: {
+                  readers: {
+                    userId: userId,
+                    readAt: new Date()
+                  }
+                }
+              }
+            );
+            
+            await redisClient.del(updateKey);
+            logDebug('batch read status updated', {
+              userId,
+              roomId,
+              messageCount: pendingIds.length
+            });
+          }
+        } catch (error) {
+          console.error('Batch read update error:', error);
+        }
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Read status queue error:', error);
+    }
+  };
+
   // 메시지 일괄 로드 함수 개선
   const loadMessages = async (socket, roomId, before, limit = BATCH_SIZE) => {
     const timeoutPromise = new Promise((_, reject) => {
@@ -335,7 +469,7 @@ module.exports = function(io) {
       }
     });
     
-    // 채팅방 입장 처리 개선
+    // 채팅방 입장 처리 개선 (Redis 캐싱 적용)
     socket.on('joinRoom', async (roomId) => {
       try {
         if (!socket.user) {
@@ -349,6 +483,18 @@ module.exports = function(io) {
             userId: socket.user.id,
             roomId
           });
+          
+          // 캐시된 메시지가 있으면 즉시 반환
+          const cachedData = await getCachedRecentMessages(roomId);
+          if (cachedData) {
+            socket.emit('joinRoomSuccess', {
+              roomId,
+              ...cachedData,
+              fromCache: true
+            });
+            return;
+          }
+          
           socket.emit('joinRoomSuccess', { roomId });
           return;
         }
@@ -385,51 +531,101 @@ module.exports = function(io) {
         socket.join(roomId);
         userRooms.set(socket.user.id, roomId);
 
-        // 입장 메시지 생성
-        const joinMessage = new Message({
-          room: roomId,
-          content: `${socket.user.name}님이 입장하였습니다.`,
-          type: 'system',
-          timestamp: new Date()
-        });
+        // 1단계: 즉시 입장 성공 응답 (캐시 확인)
+        const cachedMessages = await getCachedRecentMessages(roomId);
         
-        await joinMessage.save();
+        if (cachedMessages) {
+          // 캐시된 데이터가 있으면 즉시 반환
+          socket.emit('joinRoomSuccess', {
+            roomId,
+            participants: room.participants,
+            ...cachedMessages,
+            fromCache: true
+          });
+          
+          logDebug('user joined room with cached messages', {
+            userId: socket.user.id,
+            roomId,
+            messageCount: cachedMessages.messages?.length || 0
+          });
+        } else {
+          // 캐시가 없으면 빈 메시지로 즉시 응답
+          socket.emit('joinRoomSuccess', {
+            roomId,
+            participants: room.participants,
+            messages: [],
+            hasMore: true,
+            loading: true
+          });
 
-        // 초기 메시지 로드
-        const messageLoadResult = await loadMessages(socket, roomId);
-        const { messages, hasMore, oldestTimestamp } = messageLoadResult;
+          // 2단계: 백그라운드에서 메시지 로드
+          setImmediate(async () => {
+            try {
+              const messageLoadResult = await loadMessages(socket, roomId, null, 15); // 더 적은 수로 시작
+              const { messages, hasMore, oldestTimestamp } = messageLoadResult;
 
-        // 활성 스트리밍 메시지 조회
-        const activeStreams = Array.from(streamingSessions.values())
-          .filter(session => session.room === roomId)
-          .map(session => ({
-            _id: session.messageId,
-            type: 'ai',
-            aiType: session.aiType,
-            content: session.content,
-            timestamp: session.timestamp,
-            isStreaming: true
-          }));
+              // 활성 스트리밍 메시지 조회
+              const activeStreams = Array.from(streamingSessions.values())
+                .filter(session => session.room === roomId)
+                .map(session => ({
+                  _id: session.messageId,
+                  type: 'ai',
+                  aiType: session.aiType,
+                  content: session.content,
+                  timestamp: session.timestamp,
+                  isStreaming: true
+                }));
 
-        // 이벤트 발송
-        socket.emit('joinRoomSuccess', {
-          roomId,
-          participants: room.participants,
-          messages,
-          hasMore,
-          oldestTimestamp,
-          activeStreams
+              const messageData = {
+                messages,
+                hasMore,
+                oldestTimestamp,
+                activeStreams
+              };
+
+              // Redis에 캐싱
+              await cacheRecentMessages(roomId, messageData);
+
+              // 메시지 로드 완료 이벤트 발송
+              socket.emit('initialMessagesLoaded', messageData);
+
+              logDebug('background message load completed', {
+                userId: socket.user.id,
+                roomId,
+                messageCount: messages.length,
+                hasMore
+              });
+
+            } catch (error) {
+              console.error('Background message load error:', error);
+              socket.emit('messageLoadError', {
+                error: '메시지를 불러오는 중 오류가 발생했습니다.'
+              });
+            }
+          });
+        }
+
+        // 입장 메시지 생성 (비동기)
+        setImmediate(async () => {
+          try {
+            const joinMessage = new Message({
+              room: roomId,
+              content: `${socket.user.name}님이 입장하였습니다.`,
+              type: 'system',
+              timestamp: new Date()
+            });
+            
+            await joinMessage.save();
+            io.to(roomId).emit('message', joinMessage);
+            
+            // 캐시 무효화 (새 메시지 추가됨)
+            await invalidateRoomCache(roomId);
+          } catch (error) {
+            console.error('Join message creation error:', error);
+          }
         });
 
-        io.to(roomId).emit('message', joinMessage);
         io.to(roomId).emit('participantsUpdate', room.participants);
-
-        logDebug('user joined room', {
-          userId: socket.user.id,
-          roomId,
-          messageCount: messages.length,
-          hasMore
-        });
 
       } catch (error) {
         console.error('Join room error:', error);
@@ -579,6 +775,9 @@ module.exports = function(io) {
         ]);
 
         io.to(room).emit('message', message);
+
+        // 캐시 업데이트 (무효화 대신 새 메시지 추가)
+        await updateCacheWithNewMessage(room, message);
 
         // AI 멘션이 있는 경우 AI 응답 생성
         if (aiMentions.length > 0) {
@@ -777,7 +976,7 @@ module.exports = function(io) {
       }
     });
 
-    // 메시지 읽음 상태 처리
+    // 메시지 읽음 상태 처리 (배치 처리 적용)
     socket.on('markMessagesAsRead', async ({ roomId, messageIds }) => {
       try {
         if (!socket.user) {
@@ -788,23 +987,10 @@ module.exports = function(io) {
           return;
         }
 
-        // 읽음 상태 업데이트
-        await Message.updateMany(
-          {
-            _id: { $in: messageIds },
-            room: roomId,
-            'readers.userId': { $ne: socket.user.id }
-          },
-          {
-            $push: {
-              readers: {
-                userId: socket.user.id,
-                readAt: new Date()
-              }
-            }
-          }
-        );
+        // 배치 처리로 읽음 상태 업데이트
+        await batchUpdateReadStatus(socket.user.id, roomId, messageIds);
 
+        // 즉시 다른 사용자들에게 알림
         socket.to(roomId).emit('messagesRead', {
           userId: socket.user.id,
           messageIds
