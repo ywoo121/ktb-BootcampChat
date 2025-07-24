@@ -167,14 +167,14 @@ function WhiteboardsComponent() {
   );
 
   const handleJoinWhiteboard = async (whiteboardId) => {
-    if (connectionStatus !== CONNECTION_STATUS.CONNECTED) {
-      setError({
-        title: "화이트보드 입장 실패",
-        message: "서버와 연결이 끊어져 있습니다.",
-        type: "danger",
-      });
-      return;
-    }
+    // if (connectionStatus !== CONNECTION_STATUS.CONNECTED) {
+    //   setError({
+    //     title: "화이트보드 입장 실패",
+    //     message: "서버와 연결이 끊어져 있습니다.",
+    //     type: "danger",
+    //   });
+    //   return;
+    // }
 
     setJoiningWhiteboard(true);
 
@@ -291,7 +291,7 @@ function WhiteboardsComponent() {
                   variant="outline"
                   size="md"
                   onClick={() => handleJoinWhiteboard(whiteboard._id)}
-                  disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
+                  // disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
                 >
                   입장
                 </Button>
@@ -316,7 +316,7 @@ function WhiteboardsComponent() {
             <Button
               color="primary"
               onClick={() => router.push("/whiteboards/new")}
-              disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
+              // disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
             >
               <PdfIcon size={16} />새 화이트보드
             </Button>

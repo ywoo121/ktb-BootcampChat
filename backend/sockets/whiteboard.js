@@ -1,14 +1,17 @@
 const jwt = require("jsonwebtoken");
 const { jwtSecret } = require("../config/keys");
-const Whiteboard = require("../models/Whiteboard");
 const User = require("../models/User");
 
 module.exports = function (io) {
+  // 활성 화이트보드와 연결된 사용자들
   const activeWhiteboards = new Map();
   const connectedUsers = new Map();
 
-  // Socket.IO 인증 미들웨어
-  io.use(async (socket, next) => {
+  // 화이트보드 네임스페이스 생성
+  const whiteboardNamespace = io.of("/whiteboard");
+
+  // 인증 미들웨어
+  whiteboardNamespace.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
       const sessionId = socket.handshake.auth.sessionId;
@@ -34,207 +37,262 @@ module.exports = function (io) {
         sessionId: sessionId,
       };
 
+      console.log("🎨 Whiteboard user authenticated:", socket.user.name);
       next();
     } catch (error) {
-      console.error("Socket authentication error:", error);
+      console.error("❌ Whiteboard authentication error:", error);
       next(new Error("Authentication failed"));
     }
   });
 
-  io.on("connection", (socket) => {
-    console.log("화이트보드 사용자 연결됨:", socket.id, socket.user?.name);
+  whiteboardNamespace.on("connection", (socket) => {
+    console.log(
+      "🎨 Whiteboard socket connected:",
+      socket.id,
+      socket.user?.name
+    );
 
-    // 화이트보드 입장
+    // 화이트보드 방 입장
     socket.on("joinWhiteboard", async (whiteboardId) => {
       try {
-        if (!socket.user) {
-          socket.emit("error", { message: "인증되지 않은 사용자입니다." });
-          return;
+        console.log(
+          `🚪 User ${socket.user.name} joining whiteboard ${whiteboardId}`
+        );
+
+        // 기존 방에서 나가기
+        if (socket.currentWhiteboard) {
+          socket.leave(socket.currentWhiteboard);
+          const prevWhiteboard = activeWhiteboards.get(
+            socket.currentWhiteboard
+          );
+          if (prevWhiteboard) {
+            prevWhiteboard.users = prevWhiteboard.users.filter(
+              (u) => u.socketId !== socket.id
+            );
+            whiteboardNamespace.to(socket.currentWhiteboard).emit("userLeft", {
+              userId: socket.user.id,
+              userName: socket.user.name,
+            });
+          }
         }
 
-        const whiteboard = await Whiteboard.findOne({
-          _id: whiteboardId,
-          participants: socket.user.id,
-        }).populate("participants", "name email");
-
-        if (!whiteboard) {
-          socket.emit("error", {
-            message: "화이트보드에 접근할 권한이 없습니다.",
-          });
-          return;
-        }
-
+        // 새 방 입장
         socket.join(whiteboardId);
-        socket.whiteboardId = whiteboardId;
+        socket.currentWhiteboard = whiteboardId;
 
-        // 현재 화이트보드 데이터 전송
-        const currentWhiteboardData = activeWhiteboards.get(whiteboardId) || {
-          name: whiteboard.name,
-          drawings: [],
-          messages: [],
-          users: [],
-        };
+        // 화이트보드 데이터 초기화
+        if (!activeWhiteboards.has(whiteboardId)) {
+          activeWhiteboards.set(whiteboardId, {
+            id: whiteboardId,
+            drawings: [],
+            users: [],
+            createdAt: Date.now(),
+          });
+        }
+
+        const whiteboardData = activeWhiteboards.get(whiteboardId);
 
         // 사용자 정보 추가
         const userInfo = {
-          id: socket.user.id,
           socketId: socket.id,
-          name: socket.user.name,
+          userId: socket.user.id,
+          userName: socket.user.name,
           color: "#" + Math.floor(Math.random() * 16777215).toString(16),
-          joinedAt: new Date().toISOString(),
+          joinedAt: Date.now(),
         };
 
+        // 기존 사용자 제거 후 새로 추가
+        whiteboardData.users = whiteboardData.users.filter(
+          (u) => u.userId !== socket.user.id
+        );
+        whiteboardData.users.push(userInfo);
         connectedUsers.set(socket.id, userInfo);
-        currentWhiteboardData.users = Array.from(
-          connectedUsers.values()
-        ).filter((user) => {
-          const userSocket = io.sockets.sockets.get(user.socketId);
-          return userSocket && userSocket.whiteboardId === whiteboardId;
+
+        // 현재 화이트보드 상태 전송
+        socket.emit("whiteboardState", {
+          whiteboardId,
+          drawings: whiteboardData.drawings,
+          users: whiteboardData.users,
         });
 
-        activeWhiteboards.set(whiteboardId, currentWhiteboardData);
-
-        socket.emit("whiteboardData", currentWhiteboardData);
+        // 다른 사용자들에게 새 사용자 입장 알림
         socket.to(whiteboardId).emit("userJoined", userInfo);
-        io.to(whiteboardId).emit("usersUpdate", currentWhiteboardData.users);
+
+        // 모든 사용자에게 업데이트된 사용자 목록 전송
+        whiteboardNamespace
+          .to(whiteboardId)
+          .emit("usersUpdate", whiteboardData.users);
 
         console.log(
-          `사용자 ${socket.user.name}이 화이트보드 ${whiteboardId}에 입장했습니다.`
+          `✅ User ${socket.user.name} joined whiteboard ${whiteboardId}. Total users: ${whiteboardData.users.length}`
         );
       } catch (error) {
-        console.error("화이트보드 입장 오류:", error);
+        console.error("❌ Join whiteboard error:", error);
         socket.emit("error", { message: "화이트보드 입장에 실패했습니다." });
       }
     });
 
-    // 그리기 데이터 처리
-    socket.on("draw", (drawData) => {
-      if (!socket.whiteboardId) return;
-
-      const whiteboardData = activeWhiteboards.get(socket.whiteboardId);
-      if (!whiteboardData) return;
-
-      if (drawData.isDrawing) {
-        const drawing = {
-          id: Date.now() + "_" + socket.id,
-          x: drawData.x,
-          y: drawData.y,
-          color: drawData.color,
-          size: drawData.size,
-          userId: socket.user.id,
-          userName: socket.user.name,
-          timestamp: Date.now(),
-        };
-
-        whiteboardData.drawings.push(drawing);
-
-        // 같은 화이트보드의 다른 사용자들에게 전송
-        socket.to(socket.whiteboardId).emit("drawUpdate", drawing);
+    // 실시간 그리기 이벤트
+    socket.on("drawing", (drawingData) => {
+      if (!socket.currentWhiteboard) {
+        console.warn("⚠️ Drawing event without whiteboard room");
+        return;
       }
-    });
 
-    // 채팅 메시지 처리
-    socket.on("chatMessage", (messageData) => {
-      if (!socket.whiteboardId || !socket.user) return;
+      const whiteboardData = activeWhiteboards.get(socket.currentWhiteboard);
+      if (!whiteboardData) {
+        console.warn("⚠️ Drawing event for non-existent whiteboard");
+        return;
+      }
 
-      const message = {
-        id: Date.now() + "_" + socket.id,
-        content: messageData.content,
+      // 그리기 데이터에 사용자 정보 추가
+      const enrichedDrawingData = {
+        ...drawingData,
         userId: socket.user.id,
         userName: socket.user.name,
         timestamp: Date.now(),
+        id: `${socket.id}-${Date.now()}`,
       };
 
-      const whiteboardData = activeWhiteboards.get(socket.whiteboardId);
-      if (whiteboardData) {
-        whiteboardData.messages.push(message);
-        // 최근 100개 메시지만 유지
-        if (whiteboardData.messages.length > 100) {
-          whiteboardData.messages = whiteboardData.messages.slice(-100);
+      // 메모리에 저장 (선택적)
+      if (drawingData.type === "path" || drawingData.type === "line") {
+        whiteboardData.drawings.push(enrichedDrawingData);
+
+        // 메모리 관리: 너무 많은 그리기 데이터가 쌓이면 오래된 것 삭제
+        if (whiteboardData.drawings.length > 10000) {
+          whiteboardData.drawings = whiteboardData.drawings.slice(-5000);
         }
-        activeWhiteboards.set(socket.whiteboardId, whiteboardData);
       }
 
-      io.to(socket.whiteboardId).emit("newMessage", message);
+      // 같은 화이트보드의 다른 모든 사용자에게 실시간 전송
+      socket.to(socket.currentWhiteboard).emit("drawing", enrichedDrawingData);
+
+      console.log(
+        `🎨 Drawing from ${socket.user.name} broadcasted to whiteboard ${socket.currentWhiteboard}`
+      );
+    });
+
+    // 마우스 움직임 (실시간 커서)
+    socket.on("mouseMove", (mouseData) => {
+      if (!socket.currentWhiteboard) return;
+
+      socket.to(socket.currentWhiteboard).emit("userMouseMove", {
+        userId: socket.user.id,
+        userName: socket.user.name,
+        x: mouseData.x,
+        y: mouseData.y,
+        timestamp: Date.now(),
+      });
     });
 
     // 캔버스 지우기
     socket.on("clearCanvas", () => {
-      if (!socket.whiteboardId) return;
+      if (!socket.currentWhiteboard) return;
 
-      const whiteboardData = activeWhiteboards.get(socket.whiteboardId);
+      const whiteboardData = activeWhiteboards.get(socket.currentWhiteboard);
       if (whiteboardData) {
         whiteboardData.drawings = [];
-        activeWhiteboards.set(socket.whiteboardId, whiteboardData);
       }
 
-      io.to(socket.whiteboardId).emit("canvasCleared");
+      // 모든 사용자에게 캔버스 지우기 이벤트 전송
+      whiteboardNamespace.to(socket.currentWhiteboard).emit("canvasCleared", {
+        clearedBy: socket.user.name,
+        timestamp: Date.now(),
+      });
+
+      console.log(
+        `🧹 Canvas cleared by ${socket.user.name} in whiteboard ${socket.currentWhiteboard}`
+      );
     });
 
-    // 화이트보드 퇴장
-    socket.on("leaveWhiteboard", (whiteboardId) => {
-      try {
-        if (socket.whiteboardId) {
-          socket.leave(socket.whiteboardId);
+    // 화이트보드 나가기
+    socket.on("leaveWhiteboard", () => {
+      if (socket.currentWhiteboard) {
+        leaveWhiteboardRoom(socket);
+      }
+    });
 
-          const whiteboardData = activeWhiteboards.get(socket.whiteboardId);
-          if (whiteboardData) {
-            whiteboardData.users = whiteboardData.users.filter(
-              (user) => user.socketId !== socket.id
-            );
-            activeWhiteboards.set(socket.whiteboardId, whiteboardData);
+    // 연결 해제
+    socket.on("disconnect", (reason) => {
+      console.log(
+        `🔌 Whiteboard socket disconnected: ${socket.id} - ${reason}`
+      );
 
-            socket.to(socket.whiteboardId).emit("userLeft", {
-              id: socket.user?.id,
-              name: socket.user?.name,
-            });
-            io.to(socket.whiteboardId).emit(
-              "usersUpdate",
-              whiteboardData.users
-            );
-          }
+      if (socket.currentWhiteboard) {
+        leaveWhiteboardRoom(socket);
+      }
 
-          socket.whiteboardId = null;
-        }
+      connectedUsers.delete(socket.id);
+    });
 
-        connectedUsers.delete(socket.id);
-        console.log(
-          `사용자 ${socket.user?.name}이 화이트보드에서 퇴장했습니다.`
+    // 화이트보드 방 나가기 공통 로직
+    function leaveWhiteboardRoom(socket) {
+      const whiteboardId = socket.currentWhiteboard;
+      const whiteboardData = activeWhiteboards.get(whiteboardId);
+
+      if (whiteboardData) {
+        // 사용자 목록에서 제거
+        whiteboardData.users = whiteboardData.users.filter(
+          (u) => u.socketId !== socket.id
         );
-      } catch (error) {
-        console.error("화이트보드 퇴장 오류:", error);
-      }
-    });
 
-    // 연결 해제 처리
-    socket.on("disconnect", () => {
-      try {
-        if (socket.whiteboardId) {
-          const whiteboardData = activeWhiteboards.get(socket.whiteboardId);
-          if (whiteboardData) {
-            whiteboardData.users = whiteboardData.users.filter(
-              (user) => user.socketId !== socket.id
-            );
-            activeWhiteboards.set(socket.whiteboardId, whiteboardData);
+        // 다른 사용자들에게 퇴장 알림
+        socket.to(whiteboardId).emit("userLeft", {
+          userId: socket.user.id,
+          userName: socket.user.name,
+        });
 
-            socket.to(socket.whiteboardId).emit("userLeft", {
-              id: socket.user?.id,
-              name: socket.user?.name,
-            });
-            io.to(socket.whiteboardId).emit(
-              "usersUpdate",
-              whiteboardData.users
-            );
-          }
+        // 업데이트된 사용자 목록 전송
+        whiteboardNamespace
+          .to(whiteboardId)
+          .emit("usersUpdate", whiteboardData.users);
+
+        console.log(
+          `👋 User ${socket.user.name} left whiteboard ${whiteboardId}. Remaining users: ${whiteboardData.users.length}`
+        );
+
+        // 빈 화이트보드 정리 (선택적)
+        if (whiteboardData.users.length === 0) {
+          // 30분 후에 데이터 삭제 (메모리 절약)
+          setTimeout(() => {
+            if (activeWhiteboards.has(whiteboardId)) {
+              const currentData = activeWhiteboards.get(whiteboardId);
+              if (currentData.users.length === 0) {
+                activeWhiteboards.delete(whiteboardId);
+                console.log(`🗑️ Cleaned up empty whiteboard ${whiteboardId}`);
+              }
+            }
+          }, 30 * 60 * 1000); // 30분
         }
-
-        connectedUsers.delete(socket.id);
-        console.log("화이트보드 사용자 연결 해제됨:", socket.id);
-      } catch (error) {
-        console.error("연결 해제 처리 오류:", error);
       }
+
+      socket.leave(whiteboardId);
+      socket.currentWhiteboard = null;
+    }
+
+    // 디버깅용 이벤트
+    socket.on("debugInfo", () => {
+      socket.emit("debugResponse", {
+        socketId: socket.id,
+        userId: socket.user.id,
+        currentWhiteboard: socket.currentWhiteboard,
+        totalWhiteboards: activeWhiteboards.size,
+        connectedUsers: connectedUsers.size,
+      });
     });
   });
 
-  return io;
+  // 디버깅용 함수
+  setInterval(() => {
+    const totalUsers = Array.from(activeWhiteboards.values()).reduce(
+      (sum, wb) => sum + wb.users.length,
+      0
+    );
+    console.log(
+      `📊 Whiteboard Stats - Active boards: ${activeWhiteboards.size}, Total users: ${totalUsers}`
+    );
+  }, 60000); // 1분마다
+
+  console.log("✅ Whiteboard socket handler initialized");
+  return whiteboardNamespace;
 };
