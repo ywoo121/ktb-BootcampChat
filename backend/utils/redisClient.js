@@ -56,6 +56,16 @@ class MockRedisClient {
     this.store.clear();
     console.log('Mock Redis connection closed');
   }
+
+  async lPush(key, value) {
+    let arr = this.store.get(key)?.value;
+    if (!Array.isArray(arr)) {
+      arr = [];
+    }
+    arr.unshift(value);
+    this.store.set(key, { value: arr, expires: null });
+    return arr.length;
+  }
 }
 
 class RedisClient {
@@ -244,6 +254,16 @@ class RedisClient {
       }
     }
   }
+
+  async lPush(key, value) {
+    if (!this.isConnected) {
+      await this.connect();
+    }
+    if (this.useMock) {
+      return this.client.lPush(key, value);
+    }
+    return this.client.lPush(key, value);
+  }
 }
 
 const redisClient = new RedisClient();
@@ -302,7 +322,7 @@ module.exports = {
   setJson,
   del: (...args) => redisClient.del(...args),
   expire: (...args) => redisClient.expire(...args),
-  lpush: (...args) => redisClient.client.lPush(...args),
+  lpush: (...args) => redisClient.lPush(...args),
   createUser,
   getUserById,
   getUserByEmail,
