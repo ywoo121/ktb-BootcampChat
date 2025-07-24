@@ -307,6 +307,11 @@ const ChatInput = forwardRef(({
   }, [message, setMessage, setShowMentionList, messageInputRef]);
 
   const handleKeyDown = useCallback((e) => {
+
+    if (e.nativeEvent.isComposing) {
+      return;
+    }
+    
     if (showMentionList) {
       const participants = getFilteredParticipants(room); // room 객체 전달
       const participantsCount = participants.length;
