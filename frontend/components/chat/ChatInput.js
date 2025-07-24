@@ -11,6 +11,7 @@ import EmojiPicker from './EmojiPicker';
 import MentionDropdown from './MentionDropdown';
 import FilePreview from './FilePreview';
 import fileService from '../../services/fileService';
+import socket from '../../services/socket';
 
 const commandList = [
   { command: '/폭탄', description: '💣 이모지 폭탄 발사' },
@@ -57,7 +58,7 @@ const ChatInput = forwardRef(({
   const [showCommandList, setShowCommandList] = useState(false);
   const [filteredCommands, setFilteredCommands] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-
+  
   const handleFileValidationAndPreview = useCallback(async (file) => {
     if (!file) return;
 
@@ -127,6 +128,15 @@ const ChatInput = forwardRef(({
         setMessage('');
         setFiles([]);
 
+        // Reset textarea height after submission
+        setTimeout(() => {
+          if (messageInputRef?.current) {
+            messageInputRef.current.style.height = 'auto';
+            messageInputRef.current.style.height = '40px';
+            messageInputRef.current.style.overflowY = 'hidden';
+          }
+        }, 0);
+
       } catch (error) {
         console.error('File submit error:', error);
         setUploadError(error.message);
@@ -137,8 +147,17 @@ const ChatInput = forwardRef(({
         content: message.trim()
       });
       setMessage('');
+      
+      // Reset textarea height after submission
+      setTimeout(() => {
+        if (messageInputRef?.current) {
+          messageInputRef.current.style.height = 'auto';
+          messageInputRef.current.style.height = '40px';
+          messageInputRef.current.style.overflowY = 'hidden';
+        }
+      }, 0);
     }
-  }, [files, message, onSubmit, setMessage]);
+  }, [files, message, onSubmit, setMessage, messageInputRef]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -291,6 +310,16 @@ const ChatInput = forwardRef(({
 
     onMessageChange(e);
 
+    // 타이핑 이벤트 emit
+    socket.emit('typing');
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('stopTyping');
+    }, 1000); // 1초 동안 입력 없으면 stop
+
     if (lastAtSymbol !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtSymbol + 1);
       const hasSpaceAfterAt = textAfterAt.includes(' ');
@@ -400,6 +429,7 @@ const handleKeyDown = useCallback((e) => {
     e.preventDefault();
     if (message.trim() || files.length > 0) {
       handleSubmit(e);
+
     }
   }
 
@@ -437,7 +467,8 @@ const handleKeyDown = useCallback((e) => {
     let newSelectionEnd;
 
     if (markdown.includes('\n')) {
-      newText = message.substring(0, start) +
+      newText =
+        message.substring(0, start) +
                 markdown.replace('\n\n', '\n' + selectedText + '\n') +
                 message.substring(end);
       if (selectedText) {
@@ -450,20 +481,27 @@ const handleKeyDown = useCallback((e) => {
         newSelectionEnd = newCursorPos;
       }
     } else if (markdown.endsWith(' ')) {
-      newText = message.substring(0, start) +
-                markdown + selectedText +
+      newText =
+        message.substring(0, start) +
+        markdown +
+        selectedText +
                 message.substring(end);
       newCursorPos = start + markdown.length + selectedText.length;
       newSelectionStart = newCursorPos;
       newSelectionEnd = newCursorPos;
     } else {
-      newText = message.substring(0, start) +
-                markdown + selectedText + markdown +
-                message.substring(end);
       if (selectedText) {
+        newText =
+          message.substring(0, start) +
+          markdown +
+          selectedText +
+          markdown +
+          message.substring(end);
         newSelectionStart = start + markdown.length;
         newSelectionEnd = newSelectionStart + selectedText.length;
       } else {
+        newText =
+          message.substring(0, start) + markdown + message.substring(end);
         newSelectionStart = start + markdown.length;
         newSelectionEnd = newSelectionStart;
       }
