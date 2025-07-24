@@ -119,16 +119,17 @@ class RedisClient {
           redisOptions: {
             connectTimeout: 10000,     // 10초로 증가
             commandTimeout: 10000,     // 10초로 증가
-            retryDelayOnFailover: 500,
-            maxRetriesPerRequest: 5,   // 재시도 횟수 증가
+            retryDelayOnFailover: 100, // 빠른 재시도
+            maxRetriesPerRequest: 10,  // 리디렉션 재시도 증가
           },
           enableOfflineQueue: true,
-          retryDelayOnFailover: 500,
+          retryDelayOnFailover: 100,    // 빠른 재시도
           retryDelayOnClusterDown: 1000,
-          maxRetriesPerRequest: 5,
+          maxRetriesPerRequest: 10,     // 리디렉션 재시도 증가
           scaleReads: 'slave',
           clusterRetryDelayOnClusterDown: 1000,
-          clusterRetryDelayOnFailover: 500,
+          clusterRetryDelayOnFailover: 100,  // 빠른 재시도
+          enableReadyCheck: true,       // 클러스터 준비 상태 확인
           lazyConnect: true
         });
 
@@ -291,15 +292,6 @@ class RedisClient {
       return await client.setEx(key, seconds, stringValue);
     } catch (error) {
       console.error('Redis setEx error:', error);
-
-      // Fallback to mock if Redis fails
-      if (!this.useMock) {
-        console.log('Falling back to mock Redis client');
-        this.client = new MockRedisClient();
-        this.isConnected = true;
-        this.useMock = true;
-        return await this.client.setEx(key, seconds, value);
-      }
       throw error;
     }
   }
