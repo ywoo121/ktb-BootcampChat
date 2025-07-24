@@ -44,7 +44,7 @@ exports.uploadToS3 = async (file, userId) => {
       Key: s3Key,
       Body: file.buffer,
       ContentType: file.mimetype,
-      ACL: 'private', // 비공개 파일
+      ACL: 'public-read', // private → public-read로 변경
       Metadata: {
         'original-filename': file.originalname,
         'uploaded-by': userId,
