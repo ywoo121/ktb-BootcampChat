@@ -4,7 +4,6 @@ const cors = require('cors');
 const http = require('http');
 const socketIO = require('socket.io');
 const path = require('path');
-const { router: roomsRouter, initializeSocket } = require('./routes/api/rooms');
 const routes = require('./routes');
 
 const app = express();
@@ -77,9 +76,6 @@ app.use('/api', routes);
 // Socket.IO 설정
 const io = socketIO(server, { cors: corsOptions });
 require('./sockets/chat')(io);
-
-// Socket.IO 객체 전달
-initializeSocket(io);
 
 // 404 에러 핸들러
 app.use((req, res) => {
