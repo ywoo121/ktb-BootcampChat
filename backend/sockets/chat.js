@@ -525,6 +525,14 @@ module.exports = function(io) {
               return;
             }
 
+            // /폭탄 명령어일 경우
+            if (messageContent === '/폭탄' || messageContent === '/이모지폭격') {
+              console.log('🌧️ emojiRain 전송 to', room);
+              io.to(room).emit('emojiRain'); // 이모지 애니메이션 이벤트 전송
+              return;
+            }
+
+            // 알번 메세지
             message = new Message({
               room,
               sender: socket.user.id,
