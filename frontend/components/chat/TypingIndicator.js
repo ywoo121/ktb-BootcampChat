@@ -7,13 +7,9 @@ export default function TypingIndicator() {
 
   useEffect(() => {
     const handleTyping = ({ username }) => {
-        console.log('>>> Typing 수신: ', username);
-      setTypingUsers((prev) => {
-        if (!prev.includes(username)) {
-          return [...prev, username];
-        }
-        return prev;
-      });
+      setTypingUsers((prev) =>
+        !prev.includes(username) ? [...prev, username] : prev
+      );
     };
 
     const handleStopTyping = ({ username }) => {
@@ -29,14 +25,27 @@ export default function TypingIndicator() {
     };
   }, []);
 
-
   if (typingUsers.length === 0) return null;
 
-
-   const displayText =
+  const displayText =
     typingUsers.length === 1
       ? `${typingUsers[0]}님이 입력 중입니다...`
       : `${typingUsers[0]}님 외 ${typingUsers.length - 1}명 입력 중입니다...`;
 
-  return <p className="text-sm text-gray-500 mt-1">{displayText}</p>;
+  return (
+    <div>
+      <span 
+        style={{
+          color: '#dddde4',
+          backgroundColor: '#23272e',
+          padding: '6px 12px',
+          borderRadius: '12px',
+          fontSize: '14px',
+          display: 'inline-block'
+        }}
+      >
+        {displayText}
+      </span>
+    </div>
+  );
 }

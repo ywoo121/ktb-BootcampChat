@@ -289,7 +289,7 @@ const ChatPage = () => {
             }}
             onFileRemove={removeFilePreview}
           />
-          <TypingIndicator />
+          <TypingIndicator/>
         </Card.Footer>
       </Card.Root>
     </div>
