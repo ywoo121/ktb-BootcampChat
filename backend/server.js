@@ -8,9 +8,6 @@ const path = require("path");
 const { router: roomsRouter, initializeSocket } = require("./routes/api/rooms");
 const routes = require("./routes");
 
-require("./sockets/chat")(io);
-require("./sockets/whiteboard")(io); // 이 줄 추가
-
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
@@ -81,6 +78,7 @@ app.use("/api", routes);
 // Socket.IO 설정
 const io = socketIO(server, { cors: corsOptions });
 require("./sockets/chat")(io);
+require("./sockets/whiteboard")(io); // 이 줄 추가
 
 // Socket.IO 객체 전달
 initializeSocket(io);
