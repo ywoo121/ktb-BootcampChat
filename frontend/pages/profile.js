@@ -120,18 +120,28 @@ const Profile = () => {
     setLoading(true);
 
     try {
-      // 비밀번호 변경 처리
-      if (formData.currentPassword) {
-        if (!formData.newPassword) {
-          throw new Error('새 비밀번호를 입력해주세요.');
-        }
-        await authService.changePassword(formData.currentPassword, formData.newPassword);
-      }
-
-      // 이름 변경 처리
+      // 이름 변경 요청
       if (formData.name !== currentUser.name) {
-        const updatedUser = await authService.updateProfile({ name: formData.name });
-        setCurrentUser(updatedUser);
+        if (formData.currentPassword && formData.newPassword) {
+          await authService.updateProfile({
+            name: formData.name,
+            currentPassword: formData.currentPassword,
+            newPassword: formData.newPassword,
+          });
+        } else {
+          await authService.updateProfile({ name: formData.name });
+        }
+      } else {
+        if (formData.currentPassword && formData.newPassword) {
+          await authService.updateProfile({
+            name: formData.name,
+            currentPassword: formData.currentPassword,
+            newPassword: formData.newPassword,
+          });
+        } else {
+          setSuccess("변경사항이 없습니다.");
+          return;
+        }
       }
 
       // 성공 메시지 설정
