@@ -321,11 +321,11 @@ function ChatRoomsComponent() {
 
       setRooms(prev => {
         if (isLoadingMore) {
-          const existingIds = new Set(prev.map(room => room && room._id));
-          const newRooms = data.filter(room => room && room._id && !existingIds.has(room._id));
+          const existingIds = new Set(prev.map(room => room && room.id));
+          const newRooms = data.filter(room => room && room.id && !existingIds.has(room.id));
           return [...prev, ...newRooms];
         }
-        return data.filter(room => room && room._id);
+        return data.filter(room => room && room.id);
       });
 
       setHasMore(data.length === pageSize && metadata.hasMore);
@@ -390,8 +390,8 @@ function ChatRoomsComponent() {
         });
         
         setRooms(prev => {
-          const existingIds = new Set(prev.map(room => room && room._id));
-          const uniqueNewRooms = newRooms.filter(room => room && room._id && !existingIds.has(room._id));
+          const existingIds = new Set(prev.map(room => room && room.id));
+          const uniqueNewRooms = newRooms.filter(room => room && room.id && !existingIds.has(room.id));
           console.log('Unique new rooms:', uniqueNewRooms.length);
           return [...prev, ...uniqueNewRooms];
         });
@@ -514,7 +514,7 @@ function ChatRoomsComponent() {
           },
           roomDeleted: (roomId) => {
             setRooms(prev => {
-              const updatedRooms = prev.filter(room => room && room._id !== roomId);
+              const updatedRooms = prev.filter(room => room && room.id !== roomId);
               previousRoomsRef.current = updatedRooms;
               return updatedRooms;
             });
@@ -522,7 +522,7 @@ function ChatRoomsComponent() {
           roomUpdated: (updatedRoom) => {
             setRooms(prev => {
               const updatedRooms = prev.map(room => 
-                room && room._id === updatedRoom._id ? updatedRoom : room
+                room && room.id === updatedRoom.id ? updatedRoom : room
               );
               previousRoomsRef.current = updatedRooms;
               return updatedRooms;
@@ -615,8 +615,8 @@ function ChatRoomsComponent() {
           </StyledTableRow>
         </StyledTableHead>
         <StyledTableBody>
-          {rooms.filter(room => room && room._id).map((room) => (
-            <StyledTableRow key={room._id}>
+          {rooms.filter(room => room && room.id).map((room) => (
+            <StyledTableRow key={room.id}>
               <StyledTableCell>
                 <Text typography="body1" style={{ fontWeight: 500, marginBottom: 'var(--vapor-space-050)' }}>{room.name}</Text>
                 {room.hasPassword && (
@@ -648,7 +648,7 @@ function ChatRoomsComponent() {
                   color="primary"
                   variant="outline"
                   size="md"
-                  onClick={() => room && room._id && handleJoinRoom(room._id)}
+                  onClick={() => room && room.id && handleJoinRoom(room.id)}
                   disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
                 >
                   입장
