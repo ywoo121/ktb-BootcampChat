@@ -302,6 +302,7 @@ module.exports = {
   setJson,
   del: (...args) => redisClient.del(...args),
   expire: (...args) => redisClient.expire(...args),
+  lpush: (...args) => redisClient.client.lPush(...args),
   createUser,
   getUserById,
   getUserByEmail,
