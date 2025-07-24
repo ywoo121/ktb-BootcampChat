@@ -441,43 +441,27 @@ module.exports = function(io) {
     // 메시지 전송 처리
     socket.on('chatMessage', async (messageData) => {
       try {
-        if (!socket.user) {
-          throw new Error('Unauthorized');
-        }
-
-        if (!messageData) {
-          throw new Error('메시지 데이터가 없습니다.');
-        }
+        if (!socket.user) throw new Error('Unauthorized');
+        if (!messageData) throw new Error('메시지 데이터가 없습니다.');
 
         const { room, type, content, fileData } = messageData;
+        if (!room) throw new Error('채팅방 정보가 없습니다.');
 
-        if (!room) {
-          throw new Error('채팅방 정보가 없습니다.');
-        }
-
-        // 채팅방 권한 확인
         const chatRoom = await Room.findOne({
           _id: room,
           participants: socket.user.id
         });
+        if (!chatRoom) throw new Error('채팅방 접근 권한이 없습니다.');
 
-        if (!chatRoom) {
-          throw new Error('채팅방 접근 권한이 없습니다.');
-        }
-
-        // 세션 유효성 재확인
         const sessionValidation = await SessionService.validateSession(
           socket.user.id, 
           socket.user.sessionId
         );
-        
-        if (!sessionValidation.isValid) {
-          throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
-        }
+        if (!sessionValidation.isValid) throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
 
-        // AI 멘션 확인
         const aiMentions = extractAIMentions(content);
         let message;
+        let triggerEmojiRain = false; // <-- 여기 선언이 핵심!!
 
         logDebug('message received', {
           type,
@@ -487,21 +471,15 @@ module.exports = function(io) {
           hasAIMentions: aiMentions.length
         });
 
-        // 메시지 타입별 처리
         switch (type) {
           case 'file':
-            if (!fileData || !fileData._id) {
-              throw new Error('파일 데이터가 올바르지 않습니다.');
-            }
+            if (!fileData || !fileData._id) throw new Error('파일 데이터가 올바르지 않습니다.');
 
             const file = await File.findOne({
               _id: fileData._id,
               user: socket.user.id
             });
-
-            if (!file) {
-              throw new Error('파일을 찾을 수 없거나 접근 권한이 없습니다.');
-            }
+            if (!file) throw new Error('파일을 찾을 수 없거나 접근 권한이 없습니다.');
 
             message = new Message({
               room,
@@ -519,29 +497,28 @@ module.exports = function(io) {
             });
             break;
 
-          case 'text':
+          case 'text': {
             const messageContent = content?.trim() || messageData.msg?.trim();
-            if (!messageContent) {
-              return;
-            }
 
-            // /폭탄 명령어일 경우
+            console.log("messageContent: ", messageContent );
+            if (!messageContent) return;
+
+            let finalContent = messageContent;
             if (messageContent === '/폭탄' || messageContent === '/이모지폭격') {
-              console.log('🌧️ emojiRain 전송 to', room);
-              io.to(room).emit('emojiRain'); // 이모지 애니메이션 이벤트 전송
-              return;
+              triggerEmojiRain = true;
+              finalContent = '💣';
             }
 
-            // 알번 메세지
             message = new Message({
               room,
               sender: socket.user.id,
-              content: messageContent,
+              content: finalContent,
               type: 'text',
               timestamp: new Date(),
               reactions: {}
             });
             break;
+          }
 
           default:
             throw new Error('지원하지 않는 메시지 타입입니다.');
@@ -555,7 +532,11 @@ module.exports = function(io) {
 
         io.to(room).emit('message', message);
 
-        // AI 멘션이 있는 경우 AI 응답 생성
+        if (triggerEmojiRain) {
+          console.log('🌧️ emojiRain 전송 to', room);
+          io.to(room).emit('emojiRain');
+        }
+
         if (aiMentions.length > 0) {
           for (const ai of aiMentions) {
             const query = content.replace(new RegExp(`@${ai}\\b`, 'g'), '').trim();
