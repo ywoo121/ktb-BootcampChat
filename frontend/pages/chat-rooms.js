@@ -605,10 +605,11 @@ function ChatRoomsComponent() {
       <StyledTable>
         <StyledTableHead>
           <StyledTableRow>
-            <StyledTableHeader width="45%">채팅방</StyledTableHeader>
+            <StyledTableHeader width="30%">채팅방</StyledTableHeader>
+            <StyledTableHeader width="15%">상태</StyledTableHeader>
             <StyledTableHeader width="15%">참여자</StyledTableHeader>
             <StyledTableHeader width="25%">생성일</StyledTableHeader>
-            <StyledTableHeader width="15%">액션</StyledTableHeader>
+            <StyledTableHeader width="10%">액션</StyledTableHeader>
           </StyledTableRow>
         </StyledTableHead>
         <StyledTableBody>
@@ -623,6 +624,17 @@ function ChatRoomsComponent() {
                   </HStack>
                 )}
               </StyledTableCell>
+              <StyledTableCell>
+              {room.isAnonymous && (
+                <Badge                   
+                  color="primary"
+                  variant="outline"
+                  size="md"
+                  disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}>
+                  <Text typography="body1" style={{ color: 'inherit' }}>익명</Text>
+                </Badge>
+              )}
+            </StyledTableCell>
               <StyledTableCell>
                 <Badge color="primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--vapor-space-100)' }}>
                   <GroupIcon size={16} />

@@ -118,6 +118,7 @@ router.get('/', [limiter, auth], async (req, res) => {
         _id: room._id?.toString() || 'unknown',
         name: room.name || '제목 없음',
         hasPassword: !!room.hasPassword,
+        isAnonymous: room.isAnonymous,
         creator: {
           _id: creator._id?.toString() || 'unknown',
           name: creator.name || '알 수 없음',
