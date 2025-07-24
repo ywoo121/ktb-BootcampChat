@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState, forwardRef } from 'react';
-import { 
+import {
   LikeIcon,
   AttachFileOutlineIcon,
   SendIcon
@@ -14,10 +14,10 @@ import fileService from '../../services/fileService';
 
 const ChatInput = forwardRef(({
   message = '',
-  onMessageChange = () => {},
-  onSubmit = () => {},
-  onEmojiToggle = () => {},
-  onFileSelect = () => {},
+  onMessageChange = () => { },
+  onSubmit = () => { },
+  onEmojiToggle = () => { },
+  onFileSelect = () => { },
   fileInputRef,
   disabled = false,
   uploading: externalUploading = false,
@@ -26,11 +26,11 @@ const ChatInput = forwardRef(({
   mentionFilter = '',
   mentionIndex = 0,
   getFilteredParticipants = () => [],
-  setMessage = () => {},
-  setShowEmojiPicker = () => {},
-  setShowMentionList = () => {},
-  setMentionFilter = () => {},
-  setMentionIndex = () => {},
+  setMessage = () => { },
+  setShowEmojiPicker = () => { },
+  setShowMentionList = () => { },
+  setMentionFilter = () => { },
+  setMentionIndex = () => { },
   room = null // room prop 추가
 }, ref) => {
   const emojiPickerRef = useRef(null);
@@ -50,7 +50,7 @@ const ChatInput = forwardRef(({
 
     try {
       await fileService.validateFile(file);
-      
+
       const filePreview = {
         file,
         url: URL.createObjectURL(file),
@@ -58,11 +58,11 @@ const ChatInput = forwardRef(({
         type: file.type,
         size: file.size
       };
-      
+
       setFiles(prev => [...prev, filePreview]);
       setUploadError(null);
       onFileSelect?.(file);
-      
+
     } catch (error) {
       console.error('File validation error:', error);
       setUploadError(error.message);
@@ -145,11 +145,11 @@ const ChatInput = forwardRef(({
       if (!items) return;
 
       const fileItem = Array.from(items).find(
-        item => item.kind === 'file' && 
-        (item.type.startsWith('image/') || 
-         item.type.startsWith('video/') || 
-         item.type.startsWith('audio/') ||
-         item.type === 'application/pdf')
+        item => item.kind === 'file' &&
+          (item.type.startsWith('image/') ||
+            item.type.startsWith('video/') ||
+            item.type.startsWith('audio/') ||
+            item.type === 'application/pdf')
       );
 
       if (!fileItem) return;
@@ -181,7 +181,7 @@ const ChatInput = forwardRef(({
     const lines = textBeforeAt.split('\n');
     const currentLineIndex = lines.length - 1;
     const currentLineText = lines[currentLineIndex];
-    
+
     // Create a hidden div to measure exact text width
     const measureDiv = document.createElement('div');
     measureDiv.style.position = 'absolute';
@@ -194,11 +194,11 @@ const ChatInput = forwardRef(({
     measureDiv.style.letterSpacing = window.getComputedStyle(textarea).letterSpacing;
     measureDiv.style.textTransform = window.getComputedStyle(textarea).textTransform;
     measureDiv.textContent = currentLineText;
-    
+
     document.body.appendChild(measureDiv);
     const textWidth = measureDiv.offsetWidth;
     document.body.removeChild(measureDiv);
-    
+
     // Get textarea position and compute styles
     const textareaRect = textarea.getBoundingClientRect();
     const computedStyle = window.getComputedStyle(textarea);
@@ -206,18 +206,18 @@ const ChatInput = forwardRef(({
     const paddingTop = parseInt(computedStyle.paddingTop);
     const lineHeight = parseInt(computedStyle.lineHeight) || (parseFloat(computedStyle.fontSize) * 1.5);
     const scrollTop = textarea.scrollTop;
-    
+
     // Calculate exact position of @ symbol
     let left = textareaRect.left + paddingLeft + textWidth;
     // Position directly above the @ character (with small gap)
     let top = textareaRect.top + paddingTop + (currentLineIndex * lineHeight) - scrollTop;
-    
+
     // Ensure dropdown stays within viewport
     const dropdownWidth = 320; // Approximate width
     const dropdownHeight = 250; // Approximate height
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    
+
     // Adjust horizontal position if needed
     if (left + dropdownWidth > viewportWidth) {
       left = viewportWidth - dropdownWidth - 10;
@@ -225,10 +225,10 @@ const ChatInput = forwardRef(({
     if (left < 10) {
       left = 10;
     }
-    
+
     // Position dropdown 40px lower to be closer to the @ cursor
     top = top + 40; // Move 40px down from the cursor line
-    
+
     // If not enough space above, show below
     if (top - dropdownHeight < 10) {
       top = textareaRect.top + paddingTop + ((currentLineIndex + 1) * lineHeight) - scrollTop + 2;
@@ -236,7 +236,7 @@ const ChatInput = forwardRef(({
       // Show above - adjust top to account for dropdown height
       top = top - dropdownHeight;
     }
-    
+
     return { top, left };
   }, []);
 
@@ -245,7 +245,7 @@ const ChatInput = forwardRef(({
     const cursorPosition = e.target.selectionStart;
     const textBeforeCursor = value.slice(0, cursorPosition);
     const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
-    
+
     const textarea = e.target;
     textarea.style.height = 'auto';
     const maxHeight = parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5 * 10;
@@ -263,19 +263,19 @@ const ChatInput = forwardRef(({
     if (lastAtSymbol !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtSymbol + 1);
       const hasSpaceAfterAt = textAfterAt.includes(' ');
-      
+
       if (!hasSpaceAfterAt) {
         setMentionFilter(textAfterAt.toLowerCase());
         setShowMentionList(true);
         setMentionIndex(0);
-        
+
         // Calculate and set mention dropdown position
         const position = calculateMentionPosition(textarea, lastAtSymbol);
         setMentionPosition(position);
         return;
       }
     }
-    
+
     setShowMentionList(false);
   }, [onMessageChange, setMentionFilter, setShowMentionList, setMentionIndex, calculateMentionPosition]);
 
@@ -288,7 +288,7 @@ const ChatInput = forwardRef(({
     const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
 
     if (lastAtSymbol !== -1) {
-      const newMessage = 
+      const newMessage =
         message.slice(0, lastAtSymbol) +
         `@${user.name} ` +
         textAfterCursor;
@@ -307,6 +307,10 @@ const ChatInput = forwardRef(({
   }, [message, setMessage, setShowMentionList, messageInputRef]);
 
   const handleKeyDown = useCallback((e) => {
+    if (e.nativeEvent.isComposing) {
+      return;
+    }
+
     if (showMentionList) {
       const participants = getFilteredParticipants(room); // room 객체 전달
       const participantsCount = participants.length;
@@ -314,14 +318,14 @@ const ChatInput = forwardRef(({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setMentionIndex(prev => 
+          setMentionIndex(prev =>
             prev < participantsCount - 1 ? prev + 1 : 0
           );
           break;
 
         case 'ArrowUp':
           e.preventDefault();
-          setMentionIndex(prev => 
+          setMentionIndex(prev =>
             prev > 0 ? prev - 1 : participantsCount - 1
           );
           break;
@@ -379,8 +383,8 @@ const ChatInput = forwardRef(({
 
     if (markdown.includes('\n')) {
       newText = message.substring(0, start) +
-                markdown.replace('\n\n', '\n' + selectedText + '\n') +
-                message.substring(end);
+        markdown.replace('\n\n', '\n' + selectedText + '\n') +
+        message.substring(end);
       if (selectedText) {
         newSelectionStart = start + markdown.split('\n')[0].length + 1;
         newSelectionEnd = newSelectionStart + selectedText.length;
@@ -392,15 +396,15 @@ const ChatInput = forwardRef(({
       }
     } else if (markdown.endsWith(' ')) {
       newText = message.substring(0, start) +
-                markdown + selectedText +
-                message.substring(end);
+        markdown + selectedText +
+        message.substring(end);
       newCursorPos = start + markdown.length + selectedText.length;
       newSelectionStart = newCursorPos;
       newSelectionEnd = newCursorPos;
     } else {
       newText = message.substring(0, start) +
-                markdown + selectedText + markdown +
-                message.substring(end);
+        markdown + selectedText + markdown +
+        message.substring(end);
       if (selectedText) {
         newSelectionStart = start + markdown.length;
         newSelectionEnd = newSelectionStart + selectedText.length;
@@ -428,11 +432,11 @@ const ChatInput = forwardRef(({
     if (!messageInputRef?.current) return;
 
     const cursorPosition = messageInputRef.current.selectionStart || message.length;
-    const newMessage = 
-      message.slice(0, cursorPosition) + 
-      emoji.native + 
+    const newMessage =
+      message.slice(0, cursorPosition) +
+      emoji.native +
       message.slice(cursorPosition);
-    
+
     setMessage(newMessage);
     setShowEmojiPicker(false);
 
@@ -453,7 +457,7 @@ const ChatInput = forwardRef(({
 
   return (
     <>
-      <div 
+      <div
         className={`chat-input-wrapper ${isDragging ? 'dragging' : ''}`}
         ref={dropZoneRef}
         onDragEnter={(e) => {
@@ -473,128 +477,128 @@ const ChatInput = forwardRef(({
         }}
         onDrop={handleFileDrop}
       >
-      <div className="chat-input">
-        {files.length > 0 && (
-          <FilePreview
-            files={files}
-            uploading={uploading}
-            uploadProgress={uploadProgress}
-            uploadError={uploadError}
-            onRemove={handleFileRemove}
-            onRetry={() => setUploadError(null)}
-            showFileName={true}
-            showFileSize={true}
-            variant="default"
-          />
-        )}
-
-        <div className="chat-input-toolbar">
-          <MarkdownToolbar 
-            onAction={handleMarkdownAction}
-            size="md"
-          />
-        </div>
-
-        <div className="chat-input-main" style={{ position: 'relative' }}>
-          <textarea
-            ref={messageInputRef}
-            value={message}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder={isDragging ? "파일을 여기에 놓아주세요." : "메시지를 입력하세요... (@를 입력하여 멘션, Shift + Enter로 줄바꿈)"}
-            disabled={isDisabled}
-            rows={1}
-            autoComplete="off"
-            spellCheck="true"
-            className="chat-input-textarea"
-            style={{
-              minHeight: '40px',
-              maxHeight: `${parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5 * 10}px`,
-              resize: 'none',
-              width: '100%',
-              border: '1px solid var(--vapor-color-border)',
-              borderRadius: 'var(--vapor-radius-md)',
-              padding: 'var(--vapor-space-150)',
-              paddingRight: '120px', // Space for send button
-              backgroundColor: 'var(--vapor-color-normal)',
-              color: 'var(--vapor-color-text-primary)',
-              fontSize: 'var(--vapor-font-size-100)',
-              lineHeight: '1.5',
-              transition: 'all 0.2s ease'
-            }}
-          />
-          <Button
-            color="primary"
-            size="md"
-            onClick={handleSubmit}
-            disabled={isDisabled || (!message.trim() && files.length === 0)}
-            aria-label="메시지 보내기"
-            style={{ 
-              position: 'absolute',
-              bottom: '8px',
-              right: '8px',
-              padding: '8px 16px'
-            }}
-          >
-            <SendIcon size={20} />
-            <span style={{ marginLeft: 'var(--vapor-space-100)' }}>보내기</span>
-          </Button>
-        </div>
-
-        <div className="chat-input-actions">
-          {showEmojiPicker && (
-            <div 
-              ref={emojiPickerRef}
-              className="emoji-picker-wrapper"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="emoji-picker-container">
-                <EmojiPicker 
-                  onSelect={handleEmojiSelect}
-                  emojiSize={20}
-                  emojiButtonSize={36}
-                  perLine={8}
-                  maxFrequentRows={4}
-                />
-              </div>
-            </div>
-          )}          
-          <HStack gap="100">
-            <IconButton
-              ref={emojiButtonRef}
-              variant="ghost"
-              size="md"
-              onClick={toggleEmojiPicker}
-              disabled={isDisabled}
-              aria-label="이모티콘"
-              style={{ transition: 'all 0.2s ease' }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-            >
-              <LikeIcon size={20} />
-            </IconButton>
-            <IconButton
-              variant="ghost"
-              size="md"
-              onClick={() => fileInputRef?.current?.click()}
-              disabled={isDisabled}
-              aria-label="파일 첨부"
-              style={{ transition: 'all 0.2s ease' }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-            >
-              <AttachFileOutlineIcon size={20} />
-            </IconButton>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={(e) => handleFileValidationAndPreview(e.target.files?.[0])}
-              style={{ display: 'none' }}
-              accept="image/*,video/*,audio/*,application/pdf"
+        <div className="chat-input">
+          {files.length > 0 && (
+            <FilePreview
+              files={files}
+              uploading={uploading}
+              uploadProgress={uploadProgress}
+              uploadError={uploadError}
+              onRemove={handleFileRemove}
+              onRetry={() => setUploadError(null)}
+              showFileName={true}
+              showFileSize={true}
+              variant="default"
             />
-          </HStack>
+          )}
+
+          <div className="chat-input-toolbar">
+            <MarkdownToolbar
+              onAction={handleMarkdownAction}
+              size="md"
+            />
+          </div>
+
+          <div className="chat-input-main" style={{ position: 'relative' }}>
+            <textarea
+              ref={messageInputRef}
+              value={message}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={isDragging ? "파일을 여기에 놓아주세요." : "메시지를 입력하세요... (@를 입력하여 멘션, Shift + Enter로 줄바꿈)"}
+              disabled={isDisabled}
+              rows={1}
+              autoComplete="off"
+              spellCheck="true"
+              className="chat-input-textarea"
+              style={{
+                minHeight: '40px',
+                maxHeight: `${parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5 * 10}px`,
+                resize: 'none',
+                width: '100%',
+                border: '1px solid var(--vapor-color-border)',
+                borderRadius: 'var(--vapor-radius-md)',
+                padding: 'var(--vapor-space-150)',
+                paddingRight: '120px', // Space for send button
+                backgroundColor: 'var(--vapor-color-normal)',
+                color: 'var(--vapor-color-text-primary)',
+                fontSize: 'var(--vapor-font-size-100)',
+                lineHeight: '1.5',
+                transition: 'all 0.2s ease'
+              }}
+            />
+            <Button
+              color="primary"
+              size="md"
+              onClick={handleSubmit}
+              disabled={isDisabled || (!message.trim() && files.length === 0)}
+              aria-label="메시지 보내기"
+              style={{
+                position: 'absolute',
+                bottom: '8px',
+                right: '8px',
+                padding: '8px 16px'
+              }}
+            >
+              <SendIcon size={20} />
+              <span style={{ marginLeft: 'var(--vapor-space-100)' }}>보내기</span>
+            </Button>
+          </div>
+
+          <div className="chat-input-actions">
+            {showEmojiPicker && (
+              <div
+                ref={emojiPickerRef}
+                className="emoji-picker-wrapper"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="emoji-picker-container">
+                  <EmojiPicker
+                    onSelect={handleEmojiSelect}
+                    emojiSize={20}
+                    emojiButtonSize={36}
+                    perLine={8}
+                    maxFrequentRows={4}
+                  />
+                </div>
+              </div>
+            )}
+            <HStack gap="100">
+              <IconButton
+                ref={emojiButtonRef}
+                variant="ghost"
+                size="md"
+                onClick={toggleEmojiPicker}
+                disabled={isDisabled}
+                aria-label="이모티콘"
+                style={{ transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <LikeIcon size={20} />
+              </IconButton>
+              <IconButton
+                variant="ghost"
+                size="md"
+                onClick={() => fileInputRef?.current?.click()}
+                disabled={isDisabled}
+                aria-label="파일 첨부"
+                style={{ transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <AttachFileOutlineIcon size={20} />
+              </IconButton>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={(e) => handleFileValidationAndPreview(e.target.files?.[0])}
+                style={{ display: 'none' }}
+                accept="image/*,video/*,audio/*,application/pdf"
+              />
+            </HStack>
+          </div>
         </div>
-      </div>
       </div>
 
       {showMentionList && (
