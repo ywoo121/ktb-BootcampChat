@@ -12,6 +12,15 @@ import MentionDropdown from './MentionDropdown';
 import FilePreview from './FilePreview';
 import fileService from '../../services/fileService';
 
+const commandList = [
+  { command: '/폭탄', description: '💣 이모지 폭탄 발사' },
+  { command: '/구름', description: '☁️ 구름 이모지 발사' },
+  { command: '/하트', description: '💖 하트 이모지 뿌리기' },
+  { command: '/박수', description: '👏 박수갈채 날리기' },
+  { command: '/축하', description: '🎉 축하 이모지 발사' },
+  { command: '/웃음', description: '😂 웃긴 이모지 뿌리기' }
+];
+
 const ChatInput = forwardRef(({
   message = '',
   onMessageChange = () => {},
@@ -44,6 +53,9 @@ const ChatInput = forwardRef(({
   const [uploadError, setUploadError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+  const [showCommandList, setShowCommandList] = useState(false);
+  const [filteredCommands, setFilteredCommands] = useState([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const handleFileValidationAndPreview = useCallback(async (file) => {
     if (!file) return;
@@ -250,6 +262,18 @@ const ChatInput = forwardRef(({
     textarea.style.height = 'auto';
     const maxHeight = parseFloat(getComputedStyle(document.documentElement).fontSize) * 1.5 * 10;
 
+    if (value.startsWith('/')) {
+      const keyword = value.slice(1).toLowerCase();
+      const matched = commandList.filter(c =>
+        c.command.slice(1).toLowerCase().includes(keyword)
+      );
+      setFilteredCommands(matched);
+      setShowCommandList(true);
+    } else {
+      setShowCommandList(false);
+      setSelectedIndex(0);
+    }
+
     if (textarea.scrollHeight > maxHeight) {
       textarea.style.height = `${maxHeight}px`;
       textarea.style.overflowY = 'auto';
@@ -306,52 +330,79 @@ const ChatInput = forwardRef(({
     }
   }, [message, setMessage, setShowMentionList, messageInputRef]);
 
-  const handleKeyDown = useCallback((e) => {
-    if (showMentionList) {
-      const participants = getFilteredParticipants(room); // room 객체 전달
-      const participantsCount = participants.length;
+const handleKeyDown = useCallback((e) => {
+  const participants = getFilteredParticipants(room); 
+  const participantsCount = participants.length;
 
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setMentionIndex(prev => 
-            prev < participantsCount - 1 ? prev + 1 : 0
-          );
-          break;
-
-        case 'ArrowUp':
-          e.preventDefault();
-          setMentionIndex(prev => 
-            prev > 0 ? prev - 1 : participantsCount - 1
-          );
-          break;
-
-        case 'Tab':
-        case 'Enter':
-          e.preventDefault();
-          if (participantsCount > 0) {
-            handleMentionSelect(participants[mentionIndex]);
-          }
-          break;
-
-        case 'Escape':
-          e.preventDefault();
-          setShowMentionList(false);
-          break;
-
-        default:
-          return;
-      }
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      if (e.nativeEvent.isComposing) return;
-      e.preventDefault();
-      if (message.trim() || files.length > 0) {
-        handleSubmit(e);
-      }
-    } else if (e.key === 'Escape' && showEmojiPicker) {
-      setShowEmojiPicker(false);
+  if (showCommandList && filteredCommands.length > 0) {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % filteredCommands.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + filteredCommands.length) % filteredCommands.length);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        const cmd = filteredCommands[selectedIndex];
+        setMessage(cmd.command);
+        setShowCommandList(false);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowCommandList(false);
+        break;
+      default:
+        break;
     }
-  }, [
+    return; 
+  }
+
+  if (showMentionList) {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setMentionIndex(prev => prev < participantsCount - 1 ? prev + 1 : 0);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setMentionIndex(prev => prev > 0 ? prev - 1 : participantsCount - 1);
+        break;
+      case 'Enter':
+      case 'Tab':
+        e.preventDefault();
+        if (participantsCount > 0) {
+          handleMentionSelect(participants[mentionIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setShowMentionList(false);
+        break;
+      default:
+        break;
+    }
+    return; 
+  }
+
+  // Enter 처리
+  if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (message.trim() || files.length > 0) {
+      handleSubmit(e);
+    }
+  }
+
+  // 🎯 이모지 피커 esc
+  if (e.key === 'Escape' && showEmojiPicker) {
+    e.preventDefault();
+    setShowEmojiPicker(false);
+  }
+}, [
+    selectedIndex,
     message,
     files,
     showMentionList,
@@ -363,7 +414,7 @@ const ChatInput = forwardRef(({
     setMentionIndex,
     setShowMentionList,
     setShowEmojiPicker,
-    room // room 의존성 추가
+    room 
   ]);
 
   const handleMarkdownAction = useCallback((markdown) => {
@@ -524,6 +575,46 @@ const ChatInput = forwardRef(({
               transition: 'all 0.2s ease'
             }}
           />
+          {showCommandList && filteredCommands.length > 0 && (
+          <ul
+            style={{
+              position: 'absolute',
+              bottom: '52px', 
+              left: '0',
+              width: '30%',
+              background: '#121722',
+              border: '1px solid #454F64',
+              borderRadius: '8px',
+              listStyle: 'none',
+              padding: '6px',
+              margin: 0,
+              color: '#FFFFFF',
+              maxHeight: '180px',
+              overflowY: 'auto',
+              zIndex: 999,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+            }}
+          >
+            {filteredCommands.map((cmd, idx) => (
+              <li
+                key={cmd.command}
+                onMouseDown={() => {
+                  setMessage(cmd.command); // 슬래시 명령어 입력창에 삽입
+                  setShowCommandList(false);
+                }}
+                style={{
+                  padding: '8px 12px',
+                  background: idx === selectedIndex ? '#414149' : 'transparent',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                }}
+              >
+                <strong>{cmd.command}</strong> - {cmd.description}
+              </li>
+            ))}
+          </ul>
+        )}
+
           <Button
             color="primary"
             size="md"
