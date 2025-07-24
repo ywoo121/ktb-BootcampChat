@@ -18,9 +18,6 @@ services:
       - chat-network
     volumes:
       - ./backend/uploads:/app/uploads
-    depends_on:
-      - mongodb
-      - redis
 
   # 프론트엔드 서비스
   frontend:
@@ -37,8 +34,6 @@ services:
     container_name: chat-frontend
     networks:
       - chat-network
-    depends_on:
-      - backend
 
   # MongoDB 서비스
   mongodb:
