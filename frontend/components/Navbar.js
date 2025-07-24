@@ -76,6 +76,8 @@ const Navbar = () => {
                 width={240}
                 height={81}
                 style={{ objectFit: "contain" }}
+                draggable="false"
+                onDragStart={(e) => e.preventDefault()}
                 priority
               />
             </div>
