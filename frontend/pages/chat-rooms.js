@@ -321,11 +321,11 @@ function ChatRoomsComponent() {
 
       setRooms(prev => {
         if (isLoadingMore) {
-          const existingIds = new Set(prev.map(room => room._id));
-          const newRooms = data.filter(room => !existingIds.has(room._id));
+          const existingIds = new Set(prev.map(room => room && room._id));
+          const newRooms = data.filter(room => room && room._id && !existingIds.has(room._id));
           return [...prev, ...newRooms];
         }
-        return data;
+        return data.filter(room => room && room._id);
       });
 
       setHasMore(data.length === pageSize && metadata.hasMore);
@@ -390,8 +390,8 @@ function ChatRoomsComponent() {
         });
         
         setRooms(prev => {
-          const existingIds = new Set(prev.map(room => room._id));
-          const uniqueNewRooms = newRooms.filter(room => !existingIds.has(room._id));
+          const existingIds = new Set(prev.map(room => room && room._id));
+          const uniqueNewRooms = newRooms.filter(room => room && room._id && !existingIds.has(room._id));
           console.log('Unique new rooms:', uniqueNewRooms.length);
           return [...prev, ...uniqueNewRooms];
         });
@@ -514,7 +514,7 @@ function ChatRoomsComponent() {
           },
           roomDeleted: (roomId) => {
             setRooms(prev => {
-              const updatedRooms = prev.filter(room => room._id !== roomId);
+              const updatedRooms = prev.filter(room => room && room._id !== roomId);
               previousRoomsRef.current = updatedRooms;
               return updatedRooms;
             });
@@ -522,7 +522,7 @@ function ChatRoomsComponent() {
           roomUpdated: (updatedRoom) => {
             setRooms(prev => {
               const updatedRooms = prev.map(room => 
-                room._id === updatedRoom._id ? updatedRoom : room
+                room && room._id === updatedRoom._id ? updatedRoom : room
               );
               previousRoomsRef.current = updatedRooms;
               return updatedRooms;
@@ -612,7 +612,7 @@ function ChatRoomsComponent() {
           </StyledTableRow>
         </StyledTableHead>
         <StyledTableBody>
-          {rooms.map((room) => (
+          {rooms.filter(room => room && room._id).map((room) => (
             <StyledTableRow key={room._id}>
               <StyledTableCell>
                 <Text typography="body1" style={{ fontWeight: 500, marginBottom: 'var(--vapor-space-050)' }}>{room.name}</Text>
