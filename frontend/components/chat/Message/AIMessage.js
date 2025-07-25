@@ -1,8 +1,9 @@
-import React from "react";
-import PersistentAvatar from "../../common/PersistentAvatar";
-import MessageContent from "./MessageContent";
-import MessageActions from "./MessageActions";
-import ReadStatus from "../ReadStatus";
+import React, { useState } from 'react';
+import PersistentAvatar from '../../common/PersistentAvatar';
+import MessageContent from './MessageContent';
+import MessageActions from './MessageActions';
+import ReadStatus from '../ReadStatus';
+import useTTSPlayer from '../../../hooks/useTTSPlayer';
 
 const AIMessage = ({
   msg = {},
@@ -15,19 +16,30 @@ const AIMessage = ({
   messageRef,
   socketRef,
 }) => {
-  const formattedTime = new Date(msg.timestamp)
-    .toLocaleString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    })
-    .replace(/\./g, "년")
-    .replace(/\s/g, " ")
-    .replace("일 ", "일 ");
+  // TTS player hook
+  const {
+    isPlaying,
+    isGenerating,
+    audioProgress,
+    togglePlayback,
+    isMessagePlaying,
+    isMessageGenerating,
+    error: ttsError,
+    stopAudio
+  } = useTTSPlayer({
+    socketRef,
+    onError: (error) => console.error('TTS Error:', error)
+  });
+  
+  const formattedTime = new Date(msg.timestamp).toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).replace(/\./g, '년').replace(/\s/g, ' ').replace('일 ', '일 ');
 
   // AI 사용자 정보 생성
   // AI 사용자 정보 생성
@@ -41,6 +53,16 @@ const AIMessage = ({
         ? "Summary AI"
         : msg.aiType === "kocoAI"
         ? "Koco AI"
+        : msg.aiType === "taxAI"
+        ? "Tax AI"
+        : msg.aiType === "algorithmAI"
+        ? "Algorithm AI"
+        : msg.aiType === "ragAI"
+        ? "RAG AI"
+        : msg.aiType === "docAI"
+        ? "Documentation AI"
+        : msg.aiType === "helpAI"
+        ? "Help AI"
         : "Wayne AI", // 기본값은 'Wayne AI'
     email:
       msg.aiType === "wayneAI"
@@ -51,6 +73,16 @@ const AIMessage = ({
         ? "ai@summary.ai"
         : msg.aiType === "kocoAI"
         ? "ai@koco.ai"
+        : msg.aiType === "taxAI"
+        ? "ai@tax.ai"
+        : msg.aiType === "algorithmAI"
+        ? "ai@algorithm.ai"
+        : msg.aiType === "ragAI"
+        ? "ai@rag.ai"
+        : msg.aiType === "docAI"
+        ? "ai@doc.ai"
+        : msg.aiType === "helpAI"
+        ? "ai@help.ai"
         : "ai@wayne.ai", // 기본 이메일은 'ai@wayne.ai'
     avatarInitial:
       msg.aiType === "wayneAI"
@@ -61,7 +93,68 @@ const AIMessage = ({
         ? "S"
         : msg.aiType === "kocoAI"
         ? "K"
+        : msg.aiType === "taxAI"
+        ? "T"
+        : msg.aiType === "algorithmAI"
+        ? "A"
+        : msg.aiType === "ragAI"
+        ? "R"
+        : msg.aiType === "docAI"
+        ? "D"
+        : msg.aiType === "helpAI"
+        ? "H"
         : "W", // 기본 이니셜은 'W'
+  };
+
+  const [buttonLocked, setButtonLocked] = useState(false);
+
+  // Handle TTS playback
+  const handleTTSClick = React.useCallback(() => {
+    if (buttonLocked || isMessageGenerating(msg.id) || isMessagePlaying(msg.id)) return;
+    setButtonLocked(true);
+    if (!msg.content || isStreaming) return;
+
+    togglePlayback(msg.content, msg.aiType, msg.id);
+  }, [buttonLocked, isMessageGenerating, isMessagePlaying, msg.content, msg.aiType, msg.id, isStreaming, togglePlayback]);
+
+  // Get TTS button icon based on state
+  const getTTSIcon = () => {
+    const messageId = msg.id;
+
+    if (isMessageGenerating(messageId)) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none">
+            <animate attributeName="stroke-dasharray" values="0 31.416;15.708 15.708;0 31.416" dur="2s" repeatCount="indefinite"/>
+            <animate attributeName="stroke-dashoffset" values="0;-15.708;-31.416" dur="2s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+      );
+    }
+
+    if (isMessagePlaying(messageId)) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16" rx="1"/>
+          <rect x="14" y="4" width="4" height="16" rx="1"/>
+        </svg>
+      );
+    }
+
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <polygon points="5,3 19,12 5,21"/>
+      </svg>
+    );
+  };
+
+  // Get voice name for display
+  const getVoiceName = () => {
+    switch (msg.aiType) {
+      case 'wayneAI': return 'Shimmer';
+      case 'consultingAI': return 'Onyx';
+      default: return 'Echo';
+    }
   };
 
   const renderContent = () => {
@@ -80,32 +173,128 @@ const AIMessage = ({
     return <MessageContent content={msg.content} />;
   };
 
+  // Reset buttonLocked when TTS generation and playback are both finished
+  React.useEffect(() => {
+    if (!isMessageGenerating(msg.id) && !isMessagePlaying(msg.id)) {
+      setButtonLocked(false);
+    }
+  }, [isMessageGenerating, isMessagePlaying, msg.id]);
+
   return (
     <div className="message-group yours">
       <div className="message-sender-info">
-        <PersistentAvatar user={aiUser} size="xl" showInitials={true} />
-        <span className="sender-name">{aiUser.name}</span>
+        <PersistentAvatar
+          user={aiUser}
+          size="lg"
+          showInitials={true}
+        />
+        <span className="sender-name">
+          {aiUser.name}
+        </span>
       </div>
       <div className="message-bubble message-ai last relative group">
-        <div className="message-content">{renderContent()}</div>
+        <div className="message-content">
+          {renderContent()}
+        </div>
+
         {!isStreaming && (
           <div className="message-footer">
-            <div className="message-time mr-3">{formattedTime}</div>
+            <div className="message-time mr-3">
+              {formattedTime}
+            </div>
+
+            {/* TTS Playback Button */}
+            <button
+              onClick={handleTTSClick}
+              disabled={buttonLocked || !msg.content || isStreaming || isMessageGenerating(msg.id) || isMessagePlaying(msg.id)}
+              className="tts-button"
+              aria-label={`${aiUser.name} 메시지 음성으로 듣기 (${getVoiceName()} 목소리)`}
+              title={`${getVoiceName()} 목소리로 듣기`}
+              style={{
+                background: 'none',
+                border: '1px solid var(--vapor-color-border)',
+                borderRadius: 'var(--vapor-radius-sm)',
+                padding: '4px 8px',
+                cursor: buttonLocked || isMessageGenerating(msg.id) || isMessagePlaying(msg.id) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '12px',
+                color: 'var(--vapor-color-text-secondary)',
+                transition: 'all 0.2s ease',
+                marginRight: '8px',
+                opacity: buttonLocked || isMessageGenerating(msg.id) || isMessagePlaying(msg.id) ? 0.6 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.backgroundColor = 'var(--vapor-color-surface-hover)';
+                  e.currentTarget.style.borderColor = 'var(--vapor-color-primary)';
+                  e.currentTarget.style.color = 'var(--vapor-color-primary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.borderColor = 'var(--vapor-color-border)';
+                e.currentTarget.style.color = 'var(--vapor-color-text-secondary)';
+              }}
+            >
+              {isMessageGenerating(msg.id) ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
+              ) : (
+                getTTSIcon()
+              )}
+            </button>
+
             <ReadStatus
               messageType={msg.type}
               participants={room.participants}
               readers={msg.readers}
-              messageId={msg._id}
+              messageId={msg.id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
               socketRef={socketRef}
             />
           </div>
         )}
+
+        {/* Audio Progress Bar (shown when playing) */}
+        {isMessagePlaying(msg.id) && audioProgress > 0 && (
+          <div style={{
+            width: '100%',
+            height: '2px',
+            backgroundColor: 'var(--vapor-color-border)',
+            borderRadius: '1px',
+            marginTop: '8px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              width: `${audioProgress * 100}%`,
+              height: '100%',
+              backgroundColor: 'var(--vapor-color-primary)',
+              transition: 'width 0.1s ease',
+              borderRadius: '1px'
+            }} />
+          </div>
+        )}
+
+        {/* TTS Error Display */}
+        {ttsError && isMessageGenerating(msg.id) && (
+          <div style={{
+            marginTop: '8px',
+            padding: '4px 8px',
+            backgroundColor: '#fee2e2',
+            border: '1px solid #fecaca',
+            borderRadius: 'var(--vapor-radius-sm)',
+            color: '#dc2626',
+            fontSize: '12px'
+          }}>
+            ⚠️ 음성 생성 실패: {ttsError}
+          </div>
+        )}
       </div>
 
       <MessageActions
-        messageId={msg._id}
+        messageId={msg.id}
         messageContent={msg.content}
         reactions={msg.reactions}
         currentUserId={currentUser?.id}
@@ -113,6 +302,8 @@ const AIMessage = ({
         onReactionRemove={onReactionRemove}
         isMine={isMine}
         room={room}
+        message={msg}
+        socketRef={socketRef}
       />
     </div>
   );

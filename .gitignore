@@ -3,9 +3,11 @@ node_modules/
 dist/
 build/
 .npmrc
-.env.local
 .env
+.env.local
+.env.*.local
 backend/uploads
+*/.idea/
 
 # Next.js
 .next/
@@ -26,3 +28,5 @@ Thumbs.db
 
 # VSCode settings
 .vscode/
+
+e2e/playwright-report/data

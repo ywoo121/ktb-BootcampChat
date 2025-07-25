@@ -81,6 +81,11 @@ const MentionDropdown = ({
       if (user.name === 'consultingAI') return 'C';
       if (user.name === 'summaryAI') return 'S'; 
       if (user.name === 'kocoAI') return 'K';
+      if (user.name === 'taxAI') return 'T'; 
+      if (user.name === 'algorithmAI') return 'A';
+      if (user.name === 'ragAI') return 'R';
+      if (user.name === 'docAI') return 'D';
+      if (user.name === 'helpAI') return 'H';
       return 'M';
     }
     return user.name.charAt(0).toUpperCase();
@@ -104,7 +109,7 @@ const MentionDropdown = ({
     >
       {participants.map((user, index) => (
         <div
-          key={user._id || `ai-${user.name}`}
+          key={user.id || `ai-${user.name}`}
           ref={el => itemRefs.current[index] = el}
           role="option"
           aria-selected={index === activeIndex}
@@ -139,6 +144,16 @@ const MentionDropdown = ({
         ? 'Summary AI'
         : user.name === 'kocoAI'
         ? 'Koco AI'
+        : user.name === 'taxAI'
+        ? 'Tax AI'
+        : user.name === 'algorithmAI'
+        ? 'Algorithm AI'
+        : user.name === 'ragAI'
+        ? 'RAG AI'
+        : user.name === 'docAI'
+        ? 'Documentation AI'
+        : user.name === 'helpAI'
+        ? 'Help AI'
         : user.name
     ) : (
       user.name

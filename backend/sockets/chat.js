@@ -1,12 +1,16 @@
-const Message = require("../models/Message");
-const Room = require("../models/Room");
-const User = require("../models/User");
-const File = require("../models/File");
-const jwt = require("jsonwebtoken");
-const { jwtSecret } = require("../config/keys");
-const redisClient = require("../utils/redisClient");
-const SessionService = require("../services/sessionService");
-const aiService = require("../services/aiService");
+const Message = require('../models/Message');
+const Room = require('../models/Room');
+const User = require('../models/User');
+const File = require('../models/File');
+const jwt = require('jsonwebtoken');
+const { jwtSecret } = require('../config/keys');
+const redisClient = require('../utils/redisClient');
+const SessionService = require('../services/sessionService');
+const audioService = require('../services/audioService');
+const aiService = require('../services/aiService');
+const translationService = require('../services/translationService');
+const slashCommandService = require('../services/slashCommandService');
+const detectiveGameService = require('../services/detectiveGameService');
 
 module.exports = function (io) {
   const connectedUsers = new Map();
@@ -27,6 +31,140 @@ module.exports = function (io) {
       ...data,
       timestamp: new Date().toISOString(),
     });
+  };
+
+  // Redis 캐싱 함수들 추가
+  const getCachedRecentMessages = async (roomId) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      const cached = await redisClient.get(cacheKey);
+      
+      if (cached) {
+        logDebug('cache hit for recent messages', { roomId });
+        return cached;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Cache get error:', error);
+      return null;
+    }
+  };
+
+  const cacheRecentMessages = async (roomId, messageData) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      await redisClient.setEx(cacheKey, 300, messageData); // 5분 캐싱
+      
+      logDebug('cached recent messages', { 
+        roomId, 
+        messageCount: messageData.messages?.length || 0 
+      });
+    } catch (error) {
+      console.error('Cache set error:', error);
+    }
+  };
+
+  const invalidateRoomCache = async (roomId) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      await redisClient.del(cacheKey);
+      logDebug('cache invalidated', { roomId });
+    } catch (error) {
+      console.error('Cache invalidation error:', error);
+    }
+  };
+
+  // 캐시에 새 메시지 추가 (무효화 대신)
+  const updateCacheWithNewMessage = async (roomId, newMessage) => {
+    try {
+      const cacheKey = `recent_messages:${roomId}`;
+      const cachedData = await redisClient.get(cacheKey);
+      
+      if (cachedData && cachedData.messages) {
+        // 기존 캐시에 새 메시지 추가
+        const updatedMessages = [...cachedData.messages, newMessage];
+        
+        // 최대 15개까지만 유지 (오래된 것 제거)
+        if (updatedMessages.length > 15) {
+          updatedMessages.shift(); // 첫 번째(가장 오래된) 메시지 제거
+        }
+        
+        const updatedData = {
+          ...cachedData,
+          messages: updatedMessages,
+          hasMore: true, // 새 메시지가 추가되었으므로 더 있을 가능성
+          oldestTimestamp: updatedMessages[0]?.timestamp
+        };
+        
+        // 캐시 업데이트 (TTL 갱신)
+        await redisClient.setEx(cacheKey, 300, updatedData);
+        
+        logDebug('cache updated with new message', { 
+          roomId, 
+          messageCount: updatedMessages.length,
+          messageType: newMessage.type
+        });
+      } else {
+        logDebug('no cache to update', { roomId });
+      }
+    } catch (error) {
+      console.error('Cache update error:', error);
+      // 업데이트 실패 시 캐시 무효화
+      await invalidateRoomCache(roomId);
+    }
+  };
+
+  // 배치 읽음 상태 업데이트
+  const batchUpdateReadStatus = async (userId, roomId, messageIds) => {
+    const updateKey = `read_update:${userId}:${roomId}`;
+    
+    try {
+      // 기존 대기 중인 업데이트와 병합
+      const existingUpdate = await redisClient.get(updateKey);
+      const allMessageIds = existingUpdate 
+        ? [...new Set([...existingUpdate, ...messageIds])]
+        : messageIds;
+      
+      // 3초 후 일괄 처리하도록 스케줄링
+      await redisClient.setEx(updateKey, 3, allMessageIds);
+      
+      // 3초 후 실제 업데이트 실행
+      setTimeout(async () => {
+        try {
+          const pendingIds = await redisClient.get(updateKey);
+          if (pendingIds && Array.isArray(pendingIds)) {
+            await Message.updateMany(
+              {
+                _id: { $in: pendingIds },
+                room: roomId,
+                'readers.userId': { $ne: userId }
+              },
+              {
+                $push: {
+                  readers: {
+                    userId: userId,
+                    readAt: new Date()
+                  }
+                }
+              }
+            );
+            
+            await redisClient.del(updateKey);
+            logDebug('batch read status updated', {
+              userId,
+              roomId,
+              messageCount: pendingIds.length
+            });
+          }
+        } catch (error) {
+          console.error('Batch read update error:', error);
+        }
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Read status queue error:', error);
+    }
   };
 
   // 메시지 일괄 로드 함수 개선
@@ -67,7 +205,7 @@ module.exports = function (io) {
 
       // 읽음 상태 비동기 업데이트
       if (sortedMessages.length > 0 && socket.user) {
-        const messageIds = sortedMessages.map((msg) => msg._id);
+        const messageIds = sortedMessages.map((msg) => msg.id);
         Message.updateMany(
           {
             _id: { $in: messageIds },
@@ -236,7 +374,7 @@ module.exports = function (io) {
       }
 
       socket.user = {
-        id: user._id.toString(),
+        id: user.id.toString(),
         name: user.name,
         email: user.email,
         sessionId: sessionId,
@@ -259,7 +397,6 @@ module.exports = function (io) {
       next(new Error("Authentication failed"));
     }
   });
-
 
   io.on("connection", (socket) => {
     logDebug("socket connected", {
@@ -305,7 +442,6 @@ module.exports = function (io) {
           }, DUPLICATE_LOGIN_TIMEOUT);
         }
       }
-
 
       connectedUsers.set(socket.user.id, socket.id);
     }
@@ -413,9 +549,9 @@ module.exports = function (io) {
         }, LOAD_DELAY);
       }
     });
-
-    // 채팅방 입장 처리 개선
-    socket.on("joinRoom", async (roomId) => {
+    
+    // 채팅방 입장 처리 개선 (Redis 캐싱 적용)
+    socket.on('joinRoom', async (roomId) => {
       try {
         if (!socket.user) {
           throw new Error("Unauthorized");
@@ -428,7 +564,19 @@ module.exports = function (io) {
             userId: socket.user.id,
             roomId,
           });
-          socket.emit("joinRoomSuccess", { roomId });
+          
+          // 캐시된 메시지가 있으면 즉시 반환
+          const cachedData = await getCachedRecentMessages(roomId);
+          if (cachedData) {
+            socket.emit('joinRoomSuccess', {
+              roomId,
+              ...cachedData,
+              fromCache: true
+            });
+            return;
+          }
+          
+          socket.emit('joinRoomSuccess', { roomId });
           return;
         }
 
@@ -463,53 +611,113 @@ module.exports = function (io) {
 
         socket.join(roomId);
         userRooms.set(socket.user.id, roomId);
-
         socket.data.roomId = roomId;
         socket.data.username = socket.user.name;
 
-        // 입장 메시지 생성
-        const joinMessage = new Message({
-          room: roomId,
-          content: `${socket.user.name}님이 입장하였습니다.`,
-          type: "system",
-          timestamp: new Date(),
+        // 해당 채팅방이 익명인지 여부
+        const isAnonymous = room?.isAnonymous;
+        console.log("BE>> socket.js || 채팅방 익명: ", isAnonymous);
+
+        // 1단계: 즉시 입장 성공 응답 (캐시 확인)
+        const cachedMessages = await getCachedRecentMessages(roomId);
+        
+        if (cachedMessages) {
+          // 캐시된 데이터가 있으면 즉시 반환
+          socket.emit('joinRoomSuccess', {
+            roomId,
+            participants: room.participants,
+            ...cachedMessages,
+            fromCache: true
+          });
+          
+          logDebug('user joined room with cached messages', {
+            userId: socket.user.id,
+            roomId,
+            messageCount: cachedMessages.messages?.length || 0
+          });
+        } else {
+          // 캐시가 없으면 빈 메시지로 즉시 응답
+          socket.emit('joinRoomSuccess', {
+            roomId,
+            participants: room.participants,
+            messages: [],
+            hasMore: true,
+            loading: true
+          });
+
+          // 2단계: 백그라운드에서 메시지 로드
+          setImmediate(async () => {
+            try {
+              const messageLoadResult = await loadMessages(socket, roomId, null, 15); // 더 적은 수로 시작
+              const { messages, hasMore, oldestTimestamp } = messageLoadResult;
+
+              // 활성 스트리밍 메시지 조회
+              const activeStreams = Array.from(streamingSessions.values())
+                .filter(session => session.room === roomId)
+                .map(session => ({
+                  _id: session.messageId,
+                  type: 'ai',
+                  aiType: session.aiType,
+                  content: session.content,
+                  timestamp: session.timestamp,
+                  isStreaming: true
+                }));
+
+              const messageData = {
+                messages,
+                hasMore,
+                oldestTimestamp,
+                activeStreams
+              };
+
+              // Redis에 캐싱
+              await cacheRecentMessages(roomId, messageData);
+
+              // 메시지 로드 완료 이벤트 발송
+              socket.emit('initialMessagesLoaded', messageData);
+
+              logDebug('background message load completed', {
+                userId: socket.user.id,
+                roomId,
+                messageCount: messages.length,
+                hasMore
+              });
+
+            } catch (error) {
+              console.error('Background message load error:', error);
+              socket.emit('messageLoadError', {
+                error: '메시지를 불러오는 중 오류가 발생했습니다.'
+              });
+            }
+          });
+        }
+
+        // 입장 메시지 생성 (비동기)
+        setImmediate(async () => {
+          try {
+            const content = isAnonymous? "익명의 사용자가 입장하였습니다." : `${socket.user.name}님이 입장하였습니다.`;
+            const joinMessage = new Message({
+              room: roomId,
+              content: content,
+              type: 'system',
+              timestamp: new Date()
+            });
+            
+            await joinMessage.save();
+            io.to(roomId).emit('message', joinMessage, isAnonymous);
+            
+            // 캐시 무효화 (새 메시지 추가됨)
+            await invalidateRoomCache(roomId);
+          } catch (error) {
+            console.error('Join message creation error:', error);
+          }
         });
-
-        await joinMessage.save();
-
-        // 초기 메시지 로드
-        const messageLoadResult = await loadMessages(socket, roomId);
-        const { messages, hasMore, oldestTimestamp } = messageLoadResult;
-
-        // 활성 스트리밍 메시지 조회
-        const activeStreams = Array.from(streamingSessions.values())
-          .filter((session) => session.room === roomId)
-          .map((session) => ({
-            _id: session.messageId,
-            type: "ai",
-            aiType: session.aiType,
-            content: session.content,
-            timestamp: session.timestamp,
-            isStreaming: true,
-          }));
-
-        // 이벤트 발송
-        socket.emit("joinRoomSuccess", {
-          roomId,
-          participants: room.participants,
-          messages,
-          hasMore,
-          oldestTimestamp,
-          activeStreams,
-        });
-
-        io.to(roomId).emit("message", joinMessage);
-        io.to(roomId).emit("participantsUpdate", room.participants);
+        io.to(roomId).emit('participantsUpdate', room.participants);
 
         logDebug("user joined room", {
           userId: socket.user.id,
           roomId,
-          messageCount: messages.length,
+          messageCount: messages?.length || 0,
           hasMore,
         });
       } catch (error) {
@@ -531,10 +739,54 @@ module.exports = function (io) {
           throw new Error("메시지 데이터가 없습니다.");
         }
 
+        console.log('=== Received message data ===');
+        console.log('Full messageData:', JSON.stringify(messageData, null, 2));
+        console.log('=== End of message data ===');
+
         const { room, type, content, fileData } = messageData;
 
         if (!room) {
           throw new Error("채팅방 정보가 없습니다.");
+        }
+
+        // 싸움방지 모드 명령어 감지
+        if (type === 'text' && content && content.trim() === '@싸움방지') {
+          // Redis에 싸움방지 모드 활성화
+          const redis = await redisClient.connect();
+          await redis.set(`fightblock:${room}`, 'on');
+          // 모든 참가자에게 싸움방지 모드 활성화 알림
+          io.to(room).emit('fightblockMode', { enabled: true });
+
+          // 시스템 메시지로 저장
+          const systemMsg = new Message({
+            room,
+            content: '싸움방지 모드가 활성화되었습니다! 이제 모두 애교쟁이~',
+            type: 'system',
+            timestamp: new Date()
+          });
+          await systemMsg.save();
+          io.to(room).emit('message', systemMsg);
+          return;
+        }
+
+        // 싸움방지 모드 해제 명령어 감지
+        if (type === 'text' && content && content.trim() === '@싸움방지해제') {
+          // Redis에서 싸움방지 모드 해제
+          const redis = await redisClient.connect();
+          await redis.del(`fightblock:${room}`);
+          // 모든 참가자에게 싸움방지 모드 비활성화 알림
+          io.to(room).emit('fightblockMode', { enabled: false });
+
+          // 시스템 메시지로 저장
+          const systemMsg = new Message({
+            room,
+            content: '싸움방지 모드가 해제되었습니다! 이제 자유롭게 대화하세요~',
+            type: 'system',
+            timestamp: new Date()
+          });
+          await systemMsg.save();
+          io.to(room).emit('message', systemMsg);
+          return;
         }
 
         // 채팅방 권한 확인
@@ -569,16 +821,115 @@ module.exports = function (io) {
           hasAIMentions: aiMentions.length,
         });
 
+        // 싸움방지 모드 상태 확인 (텍스트 메시지에만 적용, 스트림 방식)
+        let aegyoTransformed = false;
+        let aegyoContent = content;
+        let aegyoStreamId = null;
+        if (type === 'text' && content) {
+          const redis = await redisClient.connect();
+          const fightblock = await redis.get(`fightblock:${room}`);
+          if (fightblock === 'on') {
+            aegyoTransformed = true;
+            aegyoStreamId = `aegyo-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+            let accumulated = '';
+            io.to(room).emit('aegyoMessageStart', { messageId: aegyoStreamId, timestamp: new Date() });
+            try {
+              await aiService.generateAegyoMessageStream(content, {
+                onStart: () => {},
+                onChunk: async ({ currentChunk }) => {
+                  accumulated += currentChunk || '';
+                  io.to(room).emit('aegyoMessageChunk', {
+                    messageId: aegyoStreamId,
+                    currentChunk,
+                    fullContent: accumulated,
+                    timestamp: new Date(),
+                    isComplete: false
+                  });
+                },
+                onComplete: async ({ content: finalContent }) => {
+                  // 메시지 저장
+                  const message = new Message({
+                    room,
+                    sender: socket.user.id,
+                    content: finalContent,
+                    type: 'text',
+                    timestamp: new Date(),
+                    reactions: {},
+                    metadata: { aegyo: true }
+                  });
+                  await message.save();
+                  await message.populate([
+                    { path: 'sender', select: 'name email profileImage' }
+                  ]);
+                  io.to(room).emit('aegyoMessageComplete', {
+                    messageId: aegyoStreamId,
+                    _id: message.id,
+                    content: finalContent,
+                    timestamp: new Date(),
+                    isComplete: true,
+                    sender: {
+                      id: String(message.sender.id || message.sender.id),
+                      name: message.sender.name,
+                      email: message.sender.email,
+                      profileImage: message.sender.profileImage
+                    }
+                  });
+                },
+                onError: (error) => {
+                  io.to(room).emit('aegyoMessageError', {
+                    messageId: aegyoStreamId,
+                    error: error.message || '애교 변환 중 오류가 발생했습니다.'
+                  });
+                }
+              });
+            } catch (err) {
+              io.to(room).emit('aegyoMessageError', {
+                messageId: aegyoStreamId,
+                error: err.message || '애교 변환 중 오류가 발생했습니다.'
+              });
+            }
+            return;
+          }
+        }
+
         // 메시지 타입별 처리
         switch (type) {
-          case "file":
-            if (!fileData || !fileData._id) {
-              throw new Error("파일 데이터가 올바르지 않습니다.");
+          case 'file':
+            if (!fileData) {
+              throw new Error('파일 데이터가 없습니다.');
+            }
+
+            // fileData가 객체인지 문자열인지 확인
+            let fileId;
+            if (typeof fileData === 'string') {
+              fileId = fileData;
+            } else if (fileData.id) {
+              fileId = fileData.id;
+            } else if (fileData.id) {
+              fileId = fileData.id;
+            } else if (fileData.filename) {
+              // filename으로 파일을 찾는 방법 추가
+              console.log('Trying to find file by filename:', fileData.filename);
+              const fileByName = await File.findOne({
+                filename: fileData.filename,
+                user: socket.user.id
+              }).sort({ uploadDate: -1 }); // 가장 최근 파일
+
+              if (fileByName) {
+                fileId = fileByName.id;
+                console.log('Found file by filename:', fileId);
+              } else {
+                console.error('File not found by filename:', fileData.filename);
+                throw new Error('파일을 찾을 수 없습니다.');
+              }
+            } else {
+              console.error('Invalid fileData structure:', fileData);
+              throw new Error('파일 ID를 찾을 수 없습니다.');
             }
 
             const file = await File.findOne({
-              _id: fileData._id,
-              user: socket.user.id,
+              _id: fileId,
+              user: socket.user.id
             });
 
             if (!file) {
@@ -589,7 +940,7 @@ module.exports = function (io) {
               room,
               sender: socket.user.id,
               type: "file",
-              file: file._id,
+              file: file.id,
               content: content || "",
               timestamp: new Date(),
               reactions: {},
@@ -601,8 +952,8 @@ module.exports = function (io) {
             });
             break;
 
-          case "text":
-            const messageContent = content?.trim() || messageData.msg?.trim();
+          case 'text':
+            const messageContent = aegyoContent?.trim() || content?.trim() || messageData.msg?.trim();
             if (!messageContent) {
               return;
             }
@@ -614,6 +965,7 @@ module.exports = function (io) {
               type: "text",
               timestamp: new Date(),
               reactions: {},
+              metadata: aegyoTransformed ? { aegyo: true } : {}
             });
             break;
 
@@ -629,6 +981,9 @@ module.exports = function (io) {
 
         io.to(room).emit("message", message);
 
+        // 캐시 업데이트 (무효화 대신 새 메시지 추가)
+        await updateCacheWithNewMessage(room, message);
+
         // 방 히스토리에 기록 추가
         if (message.type === "text") {
           aiService.addRoomHistory(
@@ -637,7 +992,6 @@ module.exports = function (io) {
           message.content || ""
           );
         }
-        
 
         // AI 멘션이 있는 경우 AI 응답 생성
         if (aiMentions.length > 0) {
@@ -652,7 +1006,7 @@ module.exports = function (io) {
         await SessionService.updateLastActivity(socket.user.id);
 
         logDebug("message processed", {
-          messageId: message._id,
+          messageId: message.id,
           type: message.type,
           room,
         });
@@ -844,8 +1198,8 @@ module.exports = function (io) {
       }
     });
 
-    // 메시지 읽음 상태 처리
-    socket.on("markMessagesAsRead", async ({ roomId, messageIds }) => {
+    // 메시지 읽음 상태 처리 (배치 처리 적용)
+    socket.on('markMessagesAsRead', async ({ roomId, messageIds }) => {
       try {
         if (!socket.user) {
           throw new Error("Unauthorized");
@@ -855,24 +1209,11 @@ module.exports = function (io) {
           return;
         }
 
-        // 읽음 상태 업데이트
-        await Message.updateMany(
-          {
-            _id: { $in: messageIds },
-            room: roomId,
-            "readers.userId": { $ne: socket.user.id },
-          },
-          {
-            $push: {
-              readers: {
-                userId: socket.user.id,
-                readAt: new Date(),
-              },
-            },
-          }
-        );
+        // 배치 처리로 읽음 상태 업데이트
+        await batchUpdateReadStatus(socket.user.id, roomId, messageIds);
 
-        socket.to(roomId).emit("messagesRead", {
+        // 즉시 다른 사용자들에게 알림
+        socket.to(roomId).emit('messagesRead', {
           userId: socket.user.id,
           messageIds,
         });
@@ -915,15 +1256,201 @@ module.exports = function (io) {
         });
       }
     });
+
+    // Audio transcription chunk processing
+    socket.on('audioChunk', async ({ audioData, sessionId, sequence, roomId }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!audioData || !sessionId) {
+          throw new Error('Audio data and session ID are required');
+        }
+
+        // Convert base64 audio data to buffer
+        const audioBuffer = Buffer.from(audioData, 'base64');
+        
+        // Process audio chunk for transcription
+        const partialTranscription = await audioService.processAudioChunk(audioBuffer, sessionId);
+        
+        if (partialTranscription && partialTranscription.trim()) {
+          // Send partial transcription back to the client
+          socket.emit('transcriptionChunk', {
+            sessionId,
+            sequence,
+            transcription: partialTranscription,
+            isPartial: true,
+            timestamp: new Date()
+          });
+
+          logDebug('audio chunk processed', {
+            sessionId,
+            sequence,
+            transcriptionLength: partialTranscription.length,
+            userId: socket.user.id
+          });
+        }
+
+      } catch (error) {
+        console.error('Audio chunk processing error:', error);
+        socket.emit('transcriptionError', {
+          sessionId: sessionId || 'unknown',
+          error: error.message || 'Audio transcription failed'
+        });
+      }
+    });
+
+    // Complete audio transcription
+    socket.on('audioComplete', async ({ sessionId, roomId }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!sessionId) {
+          throw new Error('Session ID is required');
+        }
+
+        // Notify completion
+        socket.emit('transcriptionComplete', {
+          sessionId,
+          timestamp: new Date()
+        });
+
+        logDebug('audio transcription completed', {
+          sessionId,
+          userId: socket.user.id,
+          roomId
+        });
+
+      } catch (error) {
+        console.error('Audio completion error:', error);
+        socket.emit('transcriptionError', {
+          sessionId: sessionId || 'unknown',
+          error: error.message || 'Audio completion failed'
+        });
+      }
+    });
+
+    // Whiteboard real-time collaboration events
+    socket.on('whiteboardUpdate', async ({ roomId, data, action }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!roomId || !data) {
+          throw new Error('Room ID and data are required');
+        }
+
+        // 권한 확인
+        const room = await Room.findOne({
+          _id: roomId,
+          participants: socket.user.id
+        });
+
+        if (!room) {
+          throw new Error('화이트보드에 접근할 권한이 없습니다.');
+        }
+
+        // 같은 방의 다른 사용자들에게 실시간 업데이트 전송
+        socket.to(roomId).emit('whiteboardUpdate', {
+          data,
+          action,
+          userId: socket.user.id,
+          userName: socket.user.name,
+          timestamp: new Date()
+        });
+
+        logDebug('whiteboard update broadcasted', {
+          roomId,
+          action,
+          userId: socket.user.id,
+          dataSize: JSON.stringify(data).length
+        });
+
+      } catch (error) {
+        console.error('Whiteboard update error:', error);
+        socket.emit('whiteboardError', {
+          error: error.message || 'Whiteboard update failed'
+        });
+      }
+    });
+
+    socket.on('whiteboardCursor', ({ roomId, cursor }) => {
+      try {
+        if (!socket.user || !roomId) return;
+
+        // 커서 위치를 같은 방의 다른 사용자들에게 전송
+        socket.to(roomId).emit('whiteboardCursor', {
+          cursor,
+          userId: socket.user.id,
+          userName: socket.user.name,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error('Whiteboard cursor error:', error);
+      }
+    });
+
+    // TTS request for AI messages
+    socket.on('requestTTS', async ({ messageId, text, aiType }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!text || !messageId) {
+          throw new Error('Message ID and text are required');
+        }
+
+        logDebug('TTS requested', {
+          messageId,
+          aiType,
+          textLength: text.length,
+          userId: socket.user.id
+        });
+
+        // Generate TTS audio
+        const audioBuffer = await audioService.textToSpeech(text, aiType || 'default');
+        
+        // Convert to base64 for transmission
+        const audioBase64 = audioBuffer.toString('base64');
+        
+        socket.emit('ttsReady', {
+          messageId,
+          audioData: audioBase64,
+          format: 'mp3',
+          voice: audioService.getVoiceForAI(aiType),
+          timestamp: new Date()
+        });
+
+        logDebug('TTS generated', {
+          messageId,
+          aiType,
+          audioSize: audioBuffer.length,
+          userId: socket.user.id
+        });
+
+      } catch (error) {
+        console.error('TTS generation error:', error);
+        socket.emit('ttsError', {
+          messageId: messageId || 'unknown',
+          error: error.message || 'TTS generation failed'
+        });
+      }
+    });
   });
 
   // AI 멘션 추출 함수
   function extractAIMentions(content) {
     if (!content) return [];
 
-    const aiTypes = ["wayneAI", "consultingAI", "summaryAI", "kocoAI"];
+    const aiTypes = ["wayneAI", "consultingAI", "taxAI", "algorithmAI", "ragAI", "docAI", "helpAI", "summaryAI", "kocoAI"];
     const mentions = new Set();
-    const mentionRegex = /@(wayneAI|consultingAI|summaryAI|kocoAI)\b/g;
+    const mentionRegex = /@(wayneAI|consultingAI|taxAI|algorithmAI|ragAI|docAI|helpAI|summaryAI|kocoAI)\b/g;
     let match;
 
     while ((match = mentionRegex.exec(content)) !== null) {
@@ -1017,7 +1544,7 @@ module.exports = function (io) {
           // 완료 메시지 전송
           io.to(room).emit("aiMessageComplete", {
             messageId,
-            _id: aiMessage._id,
+            _id: aiMessage.id,
             content: finalContent.content,
             aiType: aiName,
             timestamp: new Date(),
@@ -1069,6 +1596,618 @@ module.exports = function (io) {
       });
     }
   }
+
+  // Translation socket events
+  io.on('connection', (socket) => {
+    // Handle translation request
+    socket.on('translateMessage', async ({ messageId, text, targetLang, roomId }) => {
+      try {
+        if (!messageId || !text || !targetLang || !roomId) {
+          socket.emit('translationError', {
+            messageId,
+            error: 'Missing required parameters'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const userRoom = userRooms.get(socket.userId);
+        if (!userRoom || !userRoom.has(roomId)) {
+          socket.emit('translationError', {
+            messageId,
+            error: 'Not authorized to translate in this room'
+          });
+          return;
+        }
+
+        logDebug('Translation request', {
+          messageId,
+          targetLang,
+          textLength: text.length,
+          userId: socket.userId
+        });
+
+        // Generate translation using streaming
+        await translationService.translateMessageStream(text, targetLang, {
+          onStart: () => {
+            socket.emit('translationStart', {
+              messageId,
+              targetLang
+            });
+          },
+          onChunk: async (chunk) => {
+            socket.emit('translationChunk', {
+              messageId,
+              chunk: chunk.currentChunk,
+              targetLang
+            });
+          },
+          onComplete: async (result) => {
+            socket.emit('translationComplete', {
+              messageId,
+              originalText: result.originalText,
+              translatedText: result.translatedText,
+              sourceLang: result.sourceLang,
+              targetLang: result.targetLang
+            });
+
+            logDebug('Translation completed', {
+              messageId,
+              sourceLang: result.sourceLang,
+              targetLang: result.targetLang,
+              userId: socket.userId
+            });
+          },
+          onError: (error) => {
+            socket.emit('translationError', {
+              messageId,
+              error: error.message || 'Translation failed'
+            });
+
+            logDebug('Translation error', {
+              messageId,
+              error: error.message,
+              userId: socket.userId
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Translation socket error:', error);
+        socket.emit('translationError', {
+          messageId,
+          error: 'Translation service error'
+        });
+      }
+    });
+
+    // Handle language detection request
+    socket.on('detectLanguage', async ({ text, messageId }) => {
+      try {
+        if (!text) {
+          socket.emit('languageDetectionError', {
+            messageId,
+            error: 'Text is required'
+          });
+          return;
+        }
+
+        const detectedLang = await translationService.detectLanguage(text);
+        const languages = translationService.getSupportedLanguages();
+
+        socket.emit('languageDetected', {
+          messageId,
+          detectedLanguage: detectedLang,
+          languageName: languages[detectedLang] || 'Unknown',
+          text
+        });
+
+        logDebug('Language detected', {
+          messageId,
+          detectedLang,
+          userId: socket.userId
+        });
+      } catch (error) {
+        console.error('Language detection error:', error);
+        socket.emit('languageDetectionError', {
+          messageId,
+          error: 'Language detection failed'
+        });
+      }
+    });
+
+    // Handle get supported languages request
+    socket.on('getSupportedLanguages', () => {
+      try {
+        const languages = translationService.getSupportedLanguages();
+        socket.emit('supportedLanguages', { languages });
+      } catch (error) {
+        console.error('Get supported languages error:', error);
+        socket.emit('supportedLanguagesError', {
+          error: 'Failed to get supported languages'
+        });
+      }
+    });
+
+    // Handle slash command autocomplete
+    socket.on('slashCommandSearch', ({ query }) => {
+      try {
+        const commands = slashCommandService.searchCommands(query);
+        socket.emit('slashCommandSearchResults', {
+          query,
+          commands: commands.slice(0, 10) // Limit to 10 results
+        });
+      } catch (error) {
+        console.error('Slash command search error:', error);
+        socket.emit('slashCommandSearchError', {
+          error: 'Failed to search commands'
+        });
+      }
+    });
+
+    // Handle slash command execution
+    socket.on('executeSlashCommand', async ({ command, args, roomId }) => {
+      try {
+        if (!command || !roomId) {
+          socket.emit('slashCommandError', {
+            error: 'Missing required parameters'
+          });
+          return;
+        }
+
+        // Get user data
+        const user = connectedUsers.get(socket.id);
+        if (!user) {
+          socket.emit('slashCommandError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const userRoom = userRooms.get(socket.userId);
+        if (!userRoom || !userRoom.has(roomId)) {
+          socket.emit('slashCommandError', {
+            error: 'Not authorized to execute commands in this room'
+          });
+          return;
+        }
+
+        // Get room data
+        const room = await Room.findById(roomId);
+        if (!room) {
+          socket.emit('slashCommandError', {
+            error: 'Room not found'
+          });
+          return;
+        }
+
+        logDebug('Slash command execution', {
+          command,
+          args,
+          roomId,
+          userId: socket.userId
+        });
+
+        // Execute command with socket callback for room-wide effects
+        const socketCallback = (eventName, data) => {
+          io.to(roomId).emit(eventName, data);
+        };
+
+        const result = await slashCommandService.executeCommand(
+          command,
+          args,
+          user,
+          room,
+          socketCallback
+        );
+
+        if (!result.success) {
+          socket.emit('slashCommandError', {
+            error: result.error
+          });
+          return;
+        }
+
+        // Send result back to user
+        socket.emit('slashCommandResult', {
+          command,
+          args,
+          result: result.result
+        });
+
+        // Handle special command types that need to be broadcast
+        if (result.result.type === 'emoji_rain') {
+          // Emoji rain is already handled by socketCallback
+        } else if (result.result.type === 'action_message') {
+          // Broadcast action message to room
+          io.to(roomId).emit('actionMessage', {
+            userId: socket.userId,
+            username: user.name,
+            action: result.result.action,
+            message: result.result.message,
+            timestamp: new Date()
+          });
+        } else if (['dice_roll', 'coin_flip'].includes(result.result.type)) {
+          // Broadcast game results to room
+          io.to(roomId).emit('gameResult', {
+            userId: socket.userId,
+            username: user.name,
+            type: result.result.type,
+            result: result.result,
+            timestamp: new Date()
+          });
+        }
+
+        logDebug('Slash command executed successfully', {
+          command,
+          resultType: result.result.type,
+          userId: socket.userId
+        });
+      } catch (error) {
+        console.error('Slash command execution error:', error);
+        socket.emit('slashCommandError', {
+          error: 'Command execution failed'
+        });
+      }
+    });
+
+    // Handle emoji rain trigger (can also be triggered independently)
+    socket.on('triggerEmojiRain', ({ emojis, intensity, duration, roomId }) => {
+      try {
+        if (!roomId) {
+          socket.emit('emojiRainError', {
+            error: 'Room ID is required'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const userRoom = userRooms.get(socket.userId);
+        if (!userRoom || !userRoom.has(roomId)) {
+          socket.emit('emojiRainError', {
+            error: 'Not authorized to trigger emoji rain in this room'
+          });
+          return;
+        }
+
+        const user = connectedUsers.get(socket.id);
+        if (!user) {
+          socket.emit('emojiRainError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        // Default values
+        const finalEmojis = emojis && emojis.length > 0 ? emojis : ['🎉'];
+        const finalIntensity = intensity || 'medium';
+        const finalDuration = duration || slashCommandService.getIntensityDuration(finalIntensity);
+
+        // Broadcast emoji rain to all users in the room
+        io.to(roomId).emit('emojiRain', {
+          emojis: finalEmojis,
+          intensity: finalIntensity,
+          duration: finalDuration,
+          user: user.name,
+          userId: socket.userId,
+          timestamp: new Date()
+        });
+
+        logDebug('Emoji rain triggered', {
+          emojis: finalEmojis,
+          intensity: finalIntensity,
+          duration: finalDuration,
+          roomId,
+          userId: socket.userId
+        });
+      } catch (error) {
+        console.error('Emoji rain trigger error:', error);
+        socket.emit('emojiRainError', {
+          error: 'Failed to trigger emoji rain'
+        });
+      }
+    });
+
+    // Detective Game Socket Events
+    socket.on('startDetectiveGame', async ({ roomId, persona, mode }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        if (!roomId || !persona || !mode) {
+          socket.emit('detectiveGameError', {
+            error: 'Missing required parameters'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const room = await Room.findOne({
+          _id: roomId,
+          participants: socket.user.id
+        });
+
+        if (!room) {
+          socket.emit('detectiveGameError', {
+            error: 'Not authorized to start game in this room'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.startGame(roomId, persona, mode, socket.user.id);
+        
+        if (result.success) {
+          // Broadcast game start to all users in the room
+          io.to(roomId).emit('detectiveGameStarted', {
+            game: result.game,
+            message: result.message,
+            hostUser: socket.user.name,
+            timestamp: new Date()
+          });
+
+          // Send initial detective message
+          if (result.game.currentMystery) {
+            const detectiveMessage = `${result.game.persona.emoji} ${result.game.persona.greeting}\n\n**새로운 사건:** ${result.game.currentMystery.title}\n\n${result.game.currentMystery.scenario}\n\n단서가 필요하면 "단서"라고 말해주세요!`;
+            
+            io.to(roomId).emit('detectiveMessage', {
+              gameId: result.game.id,
+              persona: result.game.persona,
+              message: detectiveMessage,
+              timestamp: new Date()
+            });
+          }
+        }
+
+        socket.emit('detectiveGameStartResult', result);
+
+        logDebug('Detective game started', {
+          roomId,
+          persona,
+          mode,
+          gameId: result.game?.id,
+          userId: socket.user.id
+        });
+
+      } catch (error) {
+        console.error('Start detective game error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to start detective game'
+        });
+      }
+    });
+
+    socket.on('joinDetectiveGame', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.joinGame(roomId, socket.user.id);
+        
+        if (result.success) {
+          // Notify all users in the room
+          io.to(roomId).emit('detectiveGamePlayerJoined', {
+            userId: socket.user.id,
+            userName: socket.user.name,
+            participants: result.game.participants.length,
+            timestamp: new Date()
+          });
+        }
+
+        socket.emit('joinDetectiveGameResult', result);
+
+      } catch (error) {
+        console.error('Join detective game error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to join detective game'
+        });
+      }
+    });
+
+    socket.on('requestClue', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.getClue(roomId, socket.user.id);
+        
+        if (result.success) {
+          // Broadcast clue to all game participants
+          const gameState = detectiveGameService.getGameState(roomId);
+          if (gameState) {
+            io.to(roomId).emit('detectiveClueRevealed', {
+              clue: result.clue,
+              revealedBy: socket.user.name,
+              cluesRemaining: result.cluesRemaining,
+              totalClues: gameState.currentMystery.clues.length,
+              persona: gameState.persona,
+              timestamp: new Date()
+            });
+          }
+        }
+
+        socket.emit('clueRequestResult', result);
+
+      } catch (error) {
+        console.error('Request clue error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to get clue'
+        });
+      }
+    });
+
+    socket.on('submitGuess', async ({ roomId, guess }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        if (!guess || guess.trim().length === 0) {
+          socket.emit('detectiveGameError', {
+            error: 'Guess cannot be empty'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.submitGuess(roomId, socket.user.id, guess);
+        
+        if (result.success) {
+          const gameState = detectiveGameService.getGameState(roomId);
+          
+          // Broadcast guess result to all participants
+          io.to(roomId).emit('detectiveGuessSubmitted', {
+            guesser: socket.user.name,
+            guess: guess,
+            correct: result.correct,
+            message: result.message,
+            solution: result.solution,
+            hint: result.hint,
+            score: result.score,
+            persona: gameState?.persona,
+            timestamp: new Date()
+          });
+
+          if (result.correct) {
+            // Game solved! Show celebration
+            io.to(roomId).emit('detectiveGameSolved', {
+              winner: socket.user.name,
+              solution: result.solution,
+              score: result.score,
+              persona: gameState?.persona,
+              timestamp: new Date()
+            });
+          }
+        }
+
+        socket.emit('guessSubmitResult', result);
+
+      } catch (error) {
+        console.error('Submit guess error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to submit guess'
+        });
+      }
+    });
+
+    socket.on('detectiveChat', async ({ roomId, message }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const gameState = detectiveGameService.getGameState(roomId);
+        if (!gameState) {
+          socket.emit('detectiveGameError', {
+            error: 'No active detective game in this room'
+          });
+          return;
+        }
+
+        // Generate detective response
+        const response = detectiveGameService.generateDetectiveResponse(
+          roomId, 
+          message, 
+          socket.user.id
+        );
+
+        if (response) {
+          // Broadcast detective response to all participants
+          io.to(roomId).emit('detectiveMessage', {
+            gameId: gameState.id,
+            persona: gameState.persona,
+            message: response,
+            originalMessage: message,
+            askedBy: socket.user.name,
+            timestamp: new Date()
+          });
+        }
+
+      } catch (error) {
+        console.error('Detective chat error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to get detective response'
+        });
+      }
+    });
+
+    socket.on('endDetectiveGame', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.endGame(roomId);
+        
+        if (result.success) {
+          // Broadcast game end to all users in the room
+          io.to(roomId).emit('detectiveGameEnded', {
+            summary: result.summary,
+            endedBy: socket.user.name,
+            game: result.game,
+            timestamp: new Date()
+          });
+        }
+
+        socket.emit('endDetectiveGameResult', result);
+
+        logDebug('Detective game ended', {
+          roomId,
+          userId: socket.user.id,
+          duration: result.summary?.duration
+        });
+
+      } catch (error) {
+        console.error('End detective game error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to end detective game'
+        });
+      }
+    });
+
+    socket.on('getDetectiveGameState', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const gameState = detectiveGameService.getGameState(roomId);
+        
+        socket.emit('detectiveGameState', {
+          game: gameState,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error('Get detective game state error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to get game state'
+        });
+      }
+    });
+  });
 
   return io;
 };

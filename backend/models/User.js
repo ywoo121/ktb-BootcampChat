@@ -20,11 +20,6 @@ const UserSchema = new mongoose.Schema({
       '올바른 이메일 형식이 아닙니다.'
     ]
   },
-  encryptedEmail: {
-    type: String,
-    unique: true,
-    sparse: true
-  },
   password: {
     type: String,
     required: [true, '비밀번호는 필수 입력 항목입니다.'],
@@ -121,7 +116,7 @@ UserSchema.post('save', function(doc, next) {
 // 비밀번호 비교 메서드
 UserSchema.methods.matchPassword = async function(enteredPassword) {
   try {
-    const user = await this.constructor.findById(this._id).select('+password');
+    const user = await this.constructor.findById(this.id).select('+password');
     if (!user || !user.password) {
       return false;
     }
@@ -181,7 +176,7 @@ UserSchema.methods.changePassword = async function(currentPassword, newPassword)
 UserSchema.methods.deleteAccount = async function() {
   try {
     // 연결된 데이터 삭제 로직 추가
-    await this.constructor.deleteOne({ _id: this._id });
+    await this.constructor.deleteOne({ _id: this.id });
     return true;
   } catch (error) {
     throw error;
@@ -195,7 +190,6 @@ UserSchema.methods.decryptEmail = function() {
 
 // 인덱스 생성
 UserSchema.index({ email: 1 });
-UserSchema.index({ encryptedEmail: 1 }, { unique: true, sparse: true });
 UserSchema.index({ createdAt: 1 });
 UserSchema.index({ lastActive: 1 });
 

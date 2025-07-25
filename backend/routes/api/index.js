@@ -6,6 +6,8 @@ const authRoutes = require('./auth');
 const userRoutes = require('./users');
 const roomRoutes = require('./rooms');
 const fileRoutes = require('./files');
+const sttRoutes = require('./stt');
+const whiteboardRoutes = require('./whiteboard');
 
 // API documentation route
 router.get('/', (req, res) => {
@@ -27,6 +29,21 @@ router.get('/', (req, res) => {
       users: '/users',
       rooms: '/rooms',
       files: '/files',
+      stt: {
+        base: '/stt',
+        routes: {
+          transcribe: { method: 'POST', path: '/transcribe' },
+          supportedFormats: { method: 'GET', path: '/supported-formats' }
+        }
+      },
+      whiteboard: {
+        base: '/whiteboard',
+        routes: {
+          get: { method: 'GET', path: '/:roomId' },
+          update: { method: 'PUT', path: '/:roomId' },
+          clear: { method: 'DELETE', path: '/:roomId' }
+        }
+      }
     }
   });
 });
@@ -36,5 +53,16 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/rooms', roomRoutes);
 router.use('/files', fileRoutes);
+router.use('/stt', sttRoutes);
+router.use('/whiteboard', whiteboardRoutes);
+
+// 라우트 확인을 위한 로깅
+console.log('API 라우트가 등록되었습니다:');
+console.log('- /api/auth');
+console.log('- /api/users');
+console.log('- /api/rooms');
+console.log('- /api/files');
+console.log('- /api/stt');
+console.log('- /api/whiteboard');
 
 module.exports = router;

@@ -6,11 +6,13 @@ import ReadStatus from '../ReadStatus';
 import { generateColorFromEmail, getContrastTextColor } from '../../../utils/colorUtils';
 
 const UserMessage = ({
-  msg = {}, 
-  isMine = false, 
+  msg = {},
+  isStreaming = false,
+  isAegyo = false,
+  isMine = false,
   currentUser = null,
-  onReactionAdd,
-  onReactionRemove,
+  onReactionAdd = () => {},
+  onReactionRemove = () => {},
   room = null,
   messageRef,
   socketRef
@@ -42,17 +44,28 @@ const UserMessage = ({
         <div className="message-sender-info">
           <PersistentAvatar
             user={user}
+            room={room}
             size="lg"
             style={avatarStyles}
             showInitials={true}
           />
           <span className="sender-name">
-            {isMine ? '나' : msg.sender?.name}
+            {isMine ? '나' : msg.displayName || msg.sender?.name}
           </span>
         </div>
-        <div className={`message-bubble ${isMine ? 'message-mine' : 'message-other'} last relative group`}>
+        <div className={[
+          'message-bubble',
+          isMine ? 'message-mine' : 'message-other',
+          isAegyo ? 'message-aegyo' : '',
+          'last', 'relative', 'group'
+        ].join(' ')}>
           <div className="message-content">
             <MessageContent content={msg.content} />
+            {isStreaming && (
+              <div className="typing-indicator">
+                <span></span><span></span><span></span>
+              </div>
+            )}
           </div>
           <div className="message-footer">
             <div className="message-time mr-3">
@@ -62,16 +75,17 @@ const UserMessage = ({
               messageType={msg.type}
               participants={room.participants}
               readers={msg.readers}
-              messageId={msg._id}
+              messageId={msg.id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
+              senderId={msg.sender?.id || msg.sender?.id}
               socketRef={socketRef}
             />            
           </div>
         </div>
           
         <MessageActions 
-          messageId={msg._id}
+          messageId={msg.id}
           messageContent={msg.content}
           reactions={msg.reactions}
           currentUserId={currentUser?.id}
@@ -79,19 +93,12 @@ const UserMessage = ({
           onReactionRemove={onReactionRemove}
           isMine={isMine}
           room={room}
+          message={msg}
+          socketRef={socketRef}
         />
       </div>
     </div>
   );
-};
-
-UserMessage.defaultProps = {
-  msg: {},
-  isMine: false,
-  currentUser: null,
-  onReactionAdd: () => {},
-  onReactionRemove: () => {},
-  room: null
 };
 
 export default React.memo(UserMessage);

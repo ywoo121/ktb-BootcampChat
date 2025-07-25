@@ -4,16 +4,19 @@ import { LikeIcon, CopyIcon } from '@vapor-ui/icons';
 import { Button, IconButton } from '@vapor-ui/core';
 import EmojiPicker from '../EmojiPicker';
 import { Toast } from '../../Toast';
+import TranslationButton from '../../translation/TranslationButton';
 
 const MessageActions = ({ 
-  messageId,
-  messageContent,
-  reactions,
-  currentUserId,
-  onReactionAdd,
-  onReactionRemove,
+  messageId = '',
+  messageContent = '',
+  reactions = {},
+  currentUserId = null,
+  onReactionAdd = () => {},
+  onReactionRemove = () => {},
   isMine = false,
-  room = null
+  room = null,
+  message = null,
+  socketRef = null
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [tooltipStates, setTooltipStates] = useState({});
@@ -90,7 +93,7 @@ const MessageActions = ({
     // 사용자 ID들을 문자열로 변환하여 비교하기 위한 Map 생성
     const participantMap = new Map(
       room.participants.map(p => [
-        String(p._id || p.id), 
+        String(p.id || p.id), 
         p.name
       ])
     );
@@ -248,21 +251,16 @@ const MessageActions = ({
           >
             <CopyIcon size={16} />
           </IconButton>
+          <TranslationButton
+            message={message}
+            socketRef={socketRef}
+            currentRoom={room}
+            className="message-action-translation"
+          />
         </div>
       </div>
     </div>
   );
-};
-
-MessageActions.defaultProps = {
-  messageId: '',
-  messageContent: '',
-  reactions: {},
-  currentUserId: null,
-  onReactionAdd: () => {},
-  onReactionRemove: () => {},
-  isMine: false,
-  room: null
 };
 
 export default React.memo(MessageActions);

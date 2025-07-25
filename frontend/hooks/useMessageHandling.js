@@ -124,7 +124,7 @@ export const useMessageHandling = (socketRef, currentUser, router, handleSession
          type: 'file',
          content: messageData.content || '',
          fileData: {
-           _id: uploadResponse.data.file._id,
+           _id: uploadResponse.data.file.id,
            filename: uploadResponse.data.file.filename,
            originalname: uploadResponse.data.file.originalname,
            mimetype: uploadResponse.data.file.mimetype,
@@ -178,8 +178,11 @@ export const useMessageHandling = (socketRef, currentUser, router, handleSession
    const AI_BOTS = [
     { _id: 'wayneAI',       name: 'wayneAI',       email: 'ai@wayne.ai',       isAI: true },
     { _id: 'consultingAI',  name: 'consultingAI',  email: 'ai@consulting.ai',  isAI: true },
-    { _id: 'taxAI',      name: 'taxAI',      email: 'ai@tax.ai',    isAI: true },
-    { _id: 'algorithmAI',  name: 'algorithmAI',  email: 'ai@algorithm.ai',  isAI: true }
+    { _id: 'taxAI',         name: 'taxAI',         email: 'ai@tax.ai',         isAI: true },
+    { _id: 'algorithmAI',   name: 'algorithmAI',   email: 'ai@algorithm.ai',   isAI: true },
+    { _id: 'ragAI',         name: 'ragAI',         email: 'ai@rag.ai',         isAI: true },
+    { _id: 'docAI',         name: 'docAI',         email: 'ai@doc.ai',         isAI: true },
+    { _id: 'helpAI',        name: 'helpAI',        email: 'ai@help.ai',        isAI: true }
   ];
   
     const allParticipants = [...AI_BOTS, ...room.participants];
