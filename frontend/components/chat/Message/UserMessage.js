@@ -44,12 +44,13 @@ const UserMessage = ({
         <div className="message-sender-info">
           <PersistentAvatar
             user={user}
+            room={room}
             size="lg"
             style={avatarStyles}
             showInitials={true}
           />
           <span className="sender-name">
-            {isMine ? '나' : msg.sender?.name}
+            {isMine ? '나' : msg.displayName || msg.sender?.name}
           </span>
         </div>
         <div className={[

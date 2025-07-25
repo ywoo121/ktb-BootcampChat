@@ -20,6 +20,11 @@ const RoomSchema = new mongoose.Schema({
     type: String,
     select: false
   },
+  // 익명 채팅방 여부
+  isAnonymous: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

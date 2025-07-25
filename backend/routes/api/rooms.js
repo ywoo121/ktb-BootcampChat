@@ -129,6 +129,7 @@ router.get('/', [limiter, auth], async (req, res) => {
         _id: room._id?.toString() || 'unknown',
         name: room.name || '제목 없음',
         hasPassword: !!room.hasPassword,
+        isAnonymous: room.isAnonymous,
         creator: {
           _id: creator._id?.toString() || 'unknown',
           name: creator.name || '알 수 없음',
@@ -195,7 +196,7 @@ router.get('/', [limiter, auth], async (req, res) => {
 // 채팅방 생성 (lean() 불가 - 새로운 문서 생성)
 router.post('/', auth, async (req, res) => {
   try {
-    const { name, password } = req.body;
+    const { name, password, isAnonymous } = req.body;
     
     if (!name?.trim()) {
       return res.status(400).json({ 
@@ -208,6 +209,7 @@ router.post('/', auth, async (req, res) => {
       name: name.trim(),
       creator: req.user.id,
       participants: [req.user.id],
+      isAnonymous: isAnonymous,
       password: password
     });
 

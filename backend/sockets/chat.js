@@ -611,6 +611,10 @@ module.exports = function (io) {
         socket.data.roomId = roomId;
         socket.data.username = socket.user.name;
 
+        // 해당 채팅방이 익명인지 여부
+        const isAnonymous = room?.isAnonymous;
+        console.log("BE>> socket.js || 채팅방 익명: ", isAnonymous);
+
         // 1단계: 즉시 입장 성공 응답 (캐시 확인)
         const cachedMessages = await getCachedRecentMessages(roomId);
         
@@ -688,15 +692,16 @@ module.exports = function (io) {
         // 입장 메시지 생성 (비동기)
         setImmediate(async () => {
           try {
+            const content = isAnonymous? "익명의 사용자가 입장하였습니다." : `${socket.user.name}님이 입장하였습니다.`;
             const joinMessage = new Message({
               room: roomId,
-              content: `${socket.user.name}님이 입장하였습니다.`,
+              content: content,
               type: 'system',
               timestamp: new Date()
             });
             
             await joinMessage.save();
-            io.to(roomId).emit('message', joinMessage);
+            io.to(roomId).emit('message', joinMessage, isAnonymous);
             
             // 캐시 무효화 (새 메시지 추가됨)
             await invalidateRoomCache(roomId);
@@ -704,7 +709,6 @@ module.exports = function (io) {
             console.error('Join message creation error:', error);
           }
         });
-
         io.to(roomId).emit('participantsUpdate', room.participants);
 
         logDebug("user joined room", {

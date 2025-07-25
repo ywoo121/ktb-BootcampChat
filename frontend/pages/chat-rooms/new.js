@@ -10,7 +10,8 @@ function NewChatRoom() {
   const [formData, setFormData] = useState({
     name: '',
     hasPassword: false,
-    password: ''
+    password: '',
+    isAnonymous: false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -82,7 +83,8 @@ function NewChatRoom() {
         },
         body: JSON.stringify({
           name: formData.name.trim(),
-          password: formData.hasPassword ? formData.password : undefined
+          password: formData.hasPassword ? formData.password : undefined,
+          isAnonymous: formData.isAnonymous,
         })
       });
 
@@ -187,8 +189,20 @@ function NewChatRoom() {
                     placeholder="비밀번호를 입력하세요"
                     style={{ width: '100%' }}
                   />
-                </TextInput.Root>
+                </TextInput.Root>                
               )}
+
+              {/* 익명채팅방 토글 */}
+              <Switch.Root
+                checked={formData.isAnonymous}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, isAnonymous: checked }))
+                }
+                disabled={loading}
+              >
+                <Switch.Label>익명 채팅방</Switch.Label>
+                <Switch.Control />
+              </Switch.Root>
 
               <Button
                 type="submit"

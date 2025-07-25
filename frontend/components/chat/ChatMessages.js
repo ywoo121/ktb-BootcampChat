@@ -282,6 +282,16 @@ const ChatMessages = ({
   const loadingTimeoutRef = useRef(null);
   const scrollHandler = useRef(new ScrollHandler(containerRef));
 
+  const anonymousNameMap = useMemo(() => {
+    if (!room?.isAnonymous || !Array.isArray(room.participants)) return {};
+
+    return room.participants.reduce((acc, user, idx) => {
+      acc[user._id || user.id] = `익명${idx + 1}`;
+      return acc;
+    }, {});
+  }, [room]);
+
+
   const logDebug = useCallback((action, data) => {
     console.debug(`[ChatMessages] ${action}:`, {
       ...data,
@@ -417,6 +427,11 @@ const ChatMessages = ({
     }
 
     const isLast = idx === allMessages.length - 1;
+
+    const senderId = msg?.sender?._id || msg?.sender?.id || msg?.sender;
+
+    const displayName = room?.isAnonymous ? anonymousNameMap[senderId] : msg?.sender?.name;
+
     const commonProps = {
       currentUser,
       room,
@@ -435,7 +450,7 @@ const ChatMessages = ({
         key={msg._id || `msg-${idx}`}
         ref={isLast ? lastMessageRef : null}
         {...commonProps}
-        msg={msg}
+        msg={{...msg, displayName}}
         content={msg.content}
         isMine={msg.type !== 'system' ? isMyMessage(msg, currentUser) : undefined}
         isStreaming={msg.isStreaming || false}
@@ -444,7 +459,7 @@ const ChatMessages = ({
         socketRef={socketRef}
       />
     );
-  }, [allMessages.length, currentUser, room, isMyMessage, onReactionAdd, onReactionRemove, socketRef, fightblockMode]);
+  }, [allMessages.length, currentUser, room, isMyMessage, onReactionAdd, onReactionRemove, socketRef, anonymousNameMap, fightblockMode]);
 
   return (
     <div 

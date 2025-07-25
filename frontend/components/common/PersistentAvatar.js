@@ -4,6 +4,7 @@ import { getConsistentAvatarStyles } from '../../utils/colorUtils';
 
 const PersistentAvatar = forwardRef(({
   user,
+  room,
   size = "md",
   className = "",
   onClick,
@@ -55,7 +56,10 @@ const PersistentAvatar = forwardRef(({
   }, [getProfileImageUrl, user?.id, user?.profileImage]);
 
   // 이메일 기반의 일관된 스타일 가져오기
-  const avatarStyles = getConsistentAvatarStyles(user?.email);
+  // 익명 채팅방이면 회색으로 고정
+  const avatarStyles = room?.isAnonymous
+    ? {backgroundColor: "#a9a9a9", color:"#ffffff"}
+    : getConsistentAvatarStyles(user?.email);
 
   const handleImageError = (e) => {
     e.preventDefault();
@@ -107,7 +111,7 @@ const PersistentAvatar = forwardRef(({
           fontWeight: '500'
         }}
       >
-        {showInitials ? (user?.name?.[0]?.toUpperCase() || '?') : ''}
+        {room?.isAnonymous ? '👤' : (showInitials ? (user?.name?.[0]?.toUpperCase() || '?') : '')}
       </Avatar.Fallback>
     </Avatar.Root>
   );
