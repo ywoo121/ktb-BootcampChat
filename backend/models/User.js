@@ -20,11 +20,6 @@ const UserSchema = new mongoose.Schema({
       '올바른 이메일 형식이 아닙니다.'
     ]
   },
-  encryptedEmail: {
-    type: String,
-    unique: true,
-    sparse: true
-  },
   password: {
     type: String,
     required: [true, '비밀번호는 필수 입력 항목입니다.'],
@@ -195,7 +190,6 @@ UserSchema.methods.decryptEmail = function() {
 
 // 인덱스 생성
 UserSchema.index({ email: 1 });
-UserSchema.index({ encryptedEmail: 1 }, { unique: true, sparse: true });
 UserSchema.index({ createdAt: 1 });
 UserSchema.index({ lastActive: 1 });
 

@@ -103,99 +103,73 @@ class FileService {
 
   async uploadFile(file, onProgress) {
     const validationResult = await this.validateFile(file);
-    if (!validationResult.success) {
-      return validationResult;
-    }
-
+    if (!validationResult.success) return validationResult;
+  
     try {
       const user = authService.getCurrentUser();
       if (!user?.token || !user?.sessionId) {
-        return { 
-          success: false, 
-          message: '인증 정보가 없습니다.' 
-        };
+        return { success: false, message: '인증 정보가 없습니다.' };
       }
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const source = CancelToken.source();
-      this.activeUploads.set(file.name, source);
-
-      const uploadUrl = this.baseUrl ? 
-        `${this.baseUrl}/api/files/upload` : 
-        '/api/files/upload';
-
-      const response = await axios.post(uploadUrl, formData, {
+  
+      // STEP 1: presigned URL 요청
+      const { data: presignedData } = await axios.post(`${this.baseUrl}/api/files/presigned-upload`, {
+        originalname: file.name,
+        mimetype: file.type,
+        size: file.size
+      }, {
+        headers: this.getHeaders()
+      });
+  
+      const { uploadUrl, fileKey, fileUrl } = presignedData;
+  
+      // STEP 2: S3에 직접 업로드
+      await axios.put(uploadUrl, file, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'x-auth-token': user.token,
-          'x-session-id': user.sessionId
+          'Content-Type': file.type
         },
-        cancelToken: source.token,
-        withCredentials: true,
         onUploadProgress: (progressEvent) => {
           if (onProgress) {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            onProgress(percentCompleted);
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
           }
         }
       });
-
-      this.activeUploads.delete(file.name);
-
-      if (!response.data || !response.data.success) {
+  
+      // STEP 3: 메타데이터 등록 요청
+      const { data: uploadResponse } = await axios.post(`${this.baseUrl}/api/files/upload`, {
+        filename: fileKey.split('/').pop(),
+        originalname: file.name,
+        mimetype: file.type,
+        size: file.size,
+        path: fileKey,
+        url: fileUrl
+      }, {
+        headers: this.getHeaders()
+      });
+  
+      if (!uploadResponse.success) {
         return {
           success: false,
-          message: response.data?.message || '파일 업로드에 실패했습니다.'
+          message: uploadResponse.message || '파일 업로드 실패'
         };
       }
-
-      const fileData = response.data.file;
+  
       return {
         success: true,
         data: {
-          ...response.data,
+          ...uploadResponse,
           file: {
-            ...fileData,
-            url: this.getFileUrl(fileData.filename, true)
+            ...uploadResponse.file,
+            url: fileUrl // 미리보기 URL 바로 사용 가능
           }
         }
       };
-
+  
     } catch (error) {
-      this.activeUploads.delete(file.name);
-      
-      if (isCancel(error)) {
-        return {
-          success: false,
-          message: '업로드가 취소되었습니다.'
-        };
-      }
-
-      if (error.response?.status === 401) {
-        try {
-          const refreshed = await authService.refreshToken();
-          if (refreshed) {
-            return this.uploadFile(file, onProgress);
-          }
-          return {
-            success: false,
-            message: '인증이 만료되었습니다. 다시 로그인해주세요.'
-          };
-        } catch (refreshError) {
-          return {
-            success: false,
-            message: '인증이 만료되었습니다. 다시 로그인해주세요.'
-          };
-        }
-      }
-
       return this.handleUploadError(error);
     }
   }
+
   async downloadFile(filename, originalname) {
     try {
       const user = authService.getCurrentUser();
@@ -206,81 +180,40 @@ class FileService {
         };
       }
 
-      // 파일 존재 여부 먼저 확인
-      const downloadUrl = this.getFileUrl(filename, false);
-      const checkResponse = await axios.head(downloadUrl, {
-        headers: {
-          'x-auth-token': user.token,
-          'x-session-id': user.sessionId
-        },
-        validateStatus: status => status < 500,
-        withCredentials: true
-      });
+      console.log('Requesting download for:', filename);
 
-      if (checkResponse.status === 404) {
-        return {
-          success: false,
-          message: '파일을 찾을 수 없습니다.'
-        };
-      }
-
-      if (checkResponse.status === 403) {
-        return {
-          success: false,
-          message: '파일에 접근할 권한이 없습니다.'
-        };
-      }
-
-      if (checkResponse.status !== 200) {
-        return {
-          success: false,
-          message: '파일 다운로드 준비 중 오류가 발생했습니다.'
-        };
-      }
-
-      const response = await axios({
-        method: 'GET',
-        url: downloadUrl,
-        headers: {
-          'x-auth-token': user.token,
-          'x-session-id': user.sessionId
-        },
-        responseType: 'blob',
-        timeout: 30000,
-        withCredentials: true
-      });
-
-      const contentType = response.headers['content-type'];
-      const contentDisposition = response.headers['content-disposition'];
-      let finalFilename = originalname;
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(
-          /filename\*=UTF-8''([^;]+)|filename="([^"]+)"|filename=([^;]+)/
-        );
-        if (filenameMatch) {
-          finalFilename = decodeURIComponent(
-            filenameMatch[1] || filenameMatch[2] || filenameMatch[3]
-          );
+      // API에서 다운로드 URL 가져오기
+      const response = await axios.get(
+        `${this.baseUrl || ''}/api/files/download/${filename}`,
+        {
+          headers: {
+            'x-auth-token': user.token,
+            'x-session-id': user.sessionId
+          },
+          withCredentials: true
         }
+      );
+
+      if (!response.data?.success || !response.data?.downloadUrl) {
+        return {
+          success: false,
+          message: response.data?.message || '다운로드 URL을 가져올 수 없습니다.'
+        };
       }
 
-      const blob = new Blob([response.data], {
-        type: contentType || 'application/octet-stream'
-      });
+      console.log('Got download URL:', response.data.downloadUrl);
 
-      const blobUrl = window.URL.createObjectURL(blob);
+      // S3 public URL이므로 브라우저에서 직접 다운로드
+      const finalFilename = originalname || response.data.filename || filename;
+      
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = response.data.downloadUrl;
       link.download = finalFilename;
+      link.target = '_blank'; // 새 탭에서 열기
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-      }, 100);
 
       return { success: true };
 
@@ -291,6 +224,10 @@ class FileService {
           if (refreshed) {
             return this.downloadFile(filename, originalname);
           }
+          return {
+            success: false,
+            message: '인증이 만료되었습니다. 다시 로그인해주세요.'
+          };
         } catch (refreshError) {
           return {
             success: false,
@@ -311,22 +248,39 @@ class FileService {
     return `${baseUrl}/api/files/${endpoint}/${filename}`;
   }
 
-  getPreviewUrl(file, withAuth = true) {
+  async getPreviewUrl(file) {
     if (!file?.filename) return '';
 
-    const baseUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/files/view/${file.filename}`;
-    
-    if (!withAuth) return baseUrl;
+    try {
+      const user = authService.getCurrentUser();
+      if (!user?.token || !user?.sessionId) {
+        console.error('No auth info for preview');
+        return '';
+      }
 
-    const user = authService.getCurrentUser();
-    if (!user?.token || !user?.sessionId) return baseUrl;
+      // API를 통해 S3 URL 가져오기
+      const response = await axios.get(
+        `${this.baseUrl || ''}/api/files/view/${file.filename}`,
+        {
+          headers: {
+            'x-auth-token': user.token,
+            'x-session-id': user.sessionId
+          },
+          withCredentials: true
+        }
+      );
 
-    // URL 객체 생성 전 프로토콜 확인
-    const url = new URL(baseUrl);
-    url.searchParams.append('token', encodeURIComponent(user.token));
-    url.searchParams.append('sessionId', encodeURIComponent(user.sessionId));
+      if (response.data?.success && response.data?.viewUrl) {
+        console.log('Got preview URL:', response.data.viewUrl);
+        return response.data.viewUrl; // 이제 MongoDB에서 가져온 S3 public URL
+      }
 
-    return url.toString();
+      console.error('Failed to get preview URL:', response.data);
+      return '';
+    } catch (error) {
+      console.error('Preview URL error:', error);
+      return '';
+    }
   }
 
   getFileType(filename) {

@@ -2,6 +2,7 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config/keys');
 const SessionService = require('../services/sessionService');
+const bcrypt = require("bcryptjs");
 
 const authController = {
   async register(req, res) {
@@ -129,7 +130,7 @@ const authController = {
       }
 
       // 비밀번호 확인
-      const isMatch = await user.matchPassword(password);
+      const isMatch = await user.matchPassword(password, user.password);
       if (!isMatch) {
         return res.status(401).json({
           success: false,

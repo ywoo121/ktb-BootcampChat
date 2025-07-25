@@ -32,21 +32,50 @@ export const useFileHandling = (socketRef, currentUser, router, handleSessionErr
         (progress) => setUploadProgress(progress)
       );
 
+      console.log('Upload response received:', JSON.stringify(uploadResponse, null, 2));
+
       if (!uploadResponse.success) {
         throw new Error(uploadResponse.message || '파일 업로드에 실패했습니다.');
       }
+
+      // API 응답 구조 확인 및 처리
+      let fileData;
+      if (uploadResponse.file && uploadResponse.file.id) {
+        // 새로운 구조: { success: true, file: { id: "...", ... } }
+        fileData = {
+          _id: uploadResponse.file.id,
+          filename: uploadResponse.file.filename,
+          originalname: uploadResponse.file.originalname,
+          mimetype: uploadResponse.file.mimetype,
+          size: uploadResponse.file.size
+        };
+      } else if (uploadResponse.data && uploadResponse.data.file && uploadResponse.data.file.id) {
+        // 기존 구조: { success: true, data: { file: { id: "...", ... } } }
+        fileData = {
+          _id: uploadResponse.data.file.id,
+          filename: uploadResponse.data.file.filename,
+          originalname: uploadResponse.data.file.originalname,
+          mimetype: uploadResponse.data.file.mimetype,
+          size: uploadResponse.data.file.size
+        };
+      } else {
+        // fallback: filename만 전송 (백엔드에서 filename으로 찾도록)
+        console.warn('File ID not found in response, using filename fallback');
+        fileData = {
+          filename: uploadResponse.file?.filename || uploadResponse.data?.file?.filename,
+          originalname: uploadResponse.file?.originalname || uploadResponse.data?.file?.originalname,
+          mimetype: uploadResponse.file?.mimetype || uploadResponse.data?.file?.mimetype,
+          size: uploadResponse.file?.size || uploadResponse.data?.file?.size
+        };
+      }
+
+      console.log('Sending fileData to socket:', fileData);
 
       await socketRef.current.emit('chatMessage', {
         room: roomId,
         type: 'file',
         content: content,
-        fileData: {
-          _id: uploadResponse.data.file._id,
-          filename: uploadResponse.data.file.filename,
-          originalname: uploadResponse.data.file.originalname,
-          mimetype: uploadResponse.data.file.mimetype,
-          size: uploadResponse.data.file.size
-        }
+        fileData: fileData
       });
 
       setFilePreview(null);

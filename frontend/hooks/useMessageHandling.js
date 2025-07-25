@@ -175,21 +175,14 @@ export const useMessageHandling = (socketRef, currentUser, router, handleSession
  const getFilteredParticipants = useCallback((room) => {
    if (!room?.participants) return [];
 
-   const allParticipants = [
-     {
-       _id: 'wayneAI',
-       name: 'wayneAI',
-       email: 'ai@wayne.ai',
-       isAI: true
-     },
-     {
-       _id: 'consultingAI',
-       name: 'consultingAI',
-       email: 'ai@consulting.ai',
-       isAI: true
-     },
-     ...room.participants
-   ];
+   const AI_BOTS = [
+    { _id: 'wayneAI',       name: 'wayneAI',       email: 'ai@wayne.ai',       isAI: true },
+    { _id: 'consultingAI',  name: 'consultingAI',  email: 'ai@consulting.ai',  isAI: true },
+    { _id: 'taxAI',      name: 'taxAI',      email: 'ai@tax.ai',    isAI: true },
+    { _id: 'algorithmAI',  name: 'algorithmAI',  email: 'ai@algorithm.ai',  isAI: true }
+  ];
+  
+    const allParticipants = [...AI_BOTS, ...room.participants];
 
    return allParticipants.filter(user => 
      user.name.toLowerCase().includes(mentionFilter) ||

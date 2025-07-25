@@ -1,7 +1,7 @@
 import React from 'react';
-import { 
-  AlertCircle, 
-  WifiOff 
+import {
+  AlertCircle,
+  WifiOff
 } from 'lucide-react';
 import { Button, Text, Callout, Card, Badge, Avatar } from '@vapor-ui/core';
 import { Flex, Box, HStack } from '../components/ui/Layout';
@@ -17,6 +17,7 @@ const ChatPage = () => {
     room,
     messages,
     streamingMessages,
+    streamingAegyoMessages, // 반드시 구조분해 할당
     connected,
     connectionStatus,
     messageLoadError,
@@ -50,7 +51,8 @@ const ChatPage = () => {
     handleReactionRemove,
     loadingMessages,
     hasMoreMessages,
-    handleLoadMore
+    handleLoadMore,
+    fightblockMode,
   } = useChatRoom();
 
   const renderParticipants = () => {
@@ -70,13 +72,13 @@ const ChatPage = () => {
           {participants.slice(0, maxVisibleAvatars).map(participant => {
             const backgroundColor = generateColorFromEmail(participant.email);
             const color = getContrastTextColor(backgroundColor);
-            
+
             return (
               <Avatar.Root
                 key={participant._id}
                 size="md"
-                style={{ 
-                  backgroundColor, 
+                style={{
+                  backgroundColor,
                   color,
                   flexShrink: 0
                 }}
@@ -93,7 +95,7 @@ const ChatPage = () => {
           {remainingCount > 0 && (
             <Avatar.Root
               size="md"
-              style={{ 
+              style={{
                 backgroundColor: 'var(--vapor-color-secondary)',
                 color: 'white',
                 flexShrink: 0
@@ -204,6 +206,7 @@ const ChatPage = () => {
       <ChatMessages
         messages={messages}
         streamingMessages={streamingMessages}
+        streamingAegyoMessages={streamingAegyoMessages}
         currentUser={currentUser}
         room={room}
         messagesEndRef={messagesEndRef}
@@ -213,6 +216,7 @@ const ChatPage = () => {
         hasMoreMessages={hasMoreMessages}
         onLoadMore={handleLoadMore}
         socketRef={socketRef}
+        fightblockMode={fightblockMode}
       />
     );
   };
@@ -247,59 +251,71 @@ const ChatPage = () => {
   const status = getConnectionStatus();
 
   return (
-    <div className="chat-container">
-      <Card.Root className="chat-room-card">
-        <Card.Header className="chat-room-header">
-          <Flex justify="space-between" align="center">
-            <Flex align="center" gap="300">
-              <Text typography="heading4" style={{ fontWeight: 'bold' }} className="chat-room-title">
-                {room.name}
-              </Text>
-              {renderParticipants()}
+    <div style={{ minHeight: '100vh' }}>
+      <Flex direction="column" style={{ height: '100vh' }}>
+        <Card.Root 
+          className="chat-room-card"
+          style={fightblockMode ? { background: '#ffd6e7', boxShadow: '0 0 0 2px #ffb6d5', color: '#7a2250' } : {}}>
+          <Card.Header 
+            className="chat-room-header"
+            style={fightblockMode ? { background: '#ffe4ef', color: '#7a2250' } : {}}>
+            <Flex justify="space-between" align="center">
+              <Flex align="center" gap="300">
+                <Text typography="heading4" style={{ fontWeight: 'bold', color: fightblockMode ? '#7a2250' : undefined }} className="chat-room-title">
+                  {room.name}
+                </Text>
+                {renderParticipants()}
+              </Flex>
+              <Badge color={status.color === 'success' ? 'success' : status.color === 'warning' ? 'warning' : 'danger'}>
+                {status.label}
+              </Badge>
             </Flex>
-            <Badge color={status.color === 'success' ? 'success' : status.color === 'warning' ? 'warning' : 'danger'}>
-              {status.label}
-            </Badge>
-          </Flex>
-        </Card.Header>
+          </Card.Header>
 
-        <Card.Body className="chat-room-body">
-          <div className="chat-messages">
-            {renderContent()}
-          </div>
-        </Card.Body>
+          <Card.Body 
+            className="chat-room-body"
+            style={fightblockMode ? { background: '#fff0f7', color: '#7a2250' } : {}}>
+            <div className="chat-messages">
+              {renderContent()}
+            </div>
+          </Card.Body>
 
-        <Card.Footer className="chat-room-footer">
-          <ChatInput 
-            message={message}
-            onMessageChange={handleMessageChange}
-            onSubmit={handleMessageSubmit}
-            onEmojiToggle={handleEmojiToggle}
-            fileInputRef={fileInputRef}
-            messageInputRef={messageInputRef}
-            filePreview={filePreview}
-            disabled={connectionStatus !== 'connected'}
-            uploading={false}
-            showEmojiPicker={showEmojiPicker}
-            showMentionList={showMentionList}
-            mentionFilter={mentionFilter}
-            mentionIndex={mentionIndex}
-            getFilteredParticipants={getFilteredParticipants}
-            setMessage={setMessage}
-            setShowEmojiPicker={setShowEmojiPicker}
-            setShowMentionList={setShowMentionList}
-            setMentionFilter={setMentionFilter}
-            setMentionIndex={setMentionIndex}
-            room={room} // room 객체 전달
-            onMentionSelect={(user) => {
-              insertMention(user);
-              setShowMentionList(false);
-            }}
-            onFileRemove={removeFilePreview}
-          />
-          <TypingIndicator/>
-        </Card.Footer>
-      </Card.Root>
+          <Card.Footer 
+            className="chat-room-footer"
+            style={fightblockMode ? { background: '#ffe4ef', color: '#7a2250' } : {}}>
+            <ChatInput
+              message={message}
+              onMessageChange={handleMessageChange}
+              onSubmit={handleMessageSubmit}
+              onEmojiToggle={handleEmojiToggle}
+              fileInputRef={fileInputRef}
+              messageInputRef={messageInputRef}
+              filePreview={filePreview}
+              disabled={connectionStatus !== 'connected'}
+              uploading={false}
+              showEmojiPicker={showEmojiPicker}
+              showMentionList={showMentionList}
+              mentionFilter={mentionFilter}
+              mentionIndex={mentionIndex}
+              getFilteredParticipants={getFilteredParticipants}
+              setMessage={setMessage}
+              setShowEmojiPicker={setShowEmojiPicker}
+              setShowMentionList={setShowMentionList}
+              setMentionFilter={setMentionFilter}
+              setMentionIndex={setMentionIndex}
+              room={room} // room 객체 전달
+              socketRef={socketRef} // Add socketRef for voice features
+              onMentionSelect={(user) => {
+                insertMention(user);
+                setShowMentionList(false);
+              }}
+              onFileRemove={removeFilePreview}
+              fightblockMode={fightblockMode}
+            />
+            <TypingIndicator/>
+          </Card.Footer>
+        </Card.Root>
+      </Flex>
     </div>
   );
 };

@@ -4,6 +4,8 @@ const router = express.Router();
 const auth = require('../../middleware/auth');
 const authController = require('../../controllers/authController');
 
+console.log('Auth routes module loaded');
+
 // 상태 확인 라우트
 router.get('/', (req, res) => {
   res.json({
@@ -19,6 +21,7 @@ router.get('/', (req, res) => {
 });
 
 // Public routes
+console.log('Setting up auth routes...');
 router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/verify-token', authController.verifyToken); // GET /verify-token 라우트 추가
@@ -26,5 +29,7 @@ router.post('/verify-token', authController.verifyToken); // GET /verify-token �
 // Protected routes
 router.post('/logout', auth, authController.logout);
 router.post('/refresh-token', auth, authController.refreshToken);
+
+console.log('Auth routes configured: register, login, verify-token, logout, refresh-token');
 
 module.exports = router;

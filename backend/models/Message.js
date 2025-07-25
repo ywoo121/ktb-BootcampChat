@@ -34,7 +34,7 @@ const MessageSchema = new mongoose.Schema({
   },
   aiType: {
     type: String,
-    enum: ['wayneAI', 'consultingAI'],
+    enum: ['wayneAI', 'consultingAI', 'taxAI', 'algorithmAI'], 
     required: function() { 
       return this.type === 'ai'; 
     }
@@ -90,16 +90,73 @@ const MessageSchema = new mongoose.Schema({
   }
 });
 
-// 복합 인덱스 설정
-MessageSchema.index({ room: 1, timestamp: -1 });
-MessageSchema.index({ room: 1, isDeleted: 1 });
-MessageSchema.index({ 'readers.userId': 1 });
-MessageSchema.index({ sender: 1 });
-MessageSchema.index({ type: 1 });
-MessageSchema.index({ timestamp: -1 });
-MessageSchema.index({ 'reactions.userId': 1 });
+// 🚀 MongoDB 인덱스 최적화
+// 메시지 조회 최적화 인덱스
+MessageSchema.index({ room: 1, timestamp: -1 }); // 채팅방별 시간순 조회
+MessageSchema.index({ room: 1, isDeleted: 1, timestamp: -1 }); // 삭제되지 않은 메시지 조회
+MessageSchema.index({ room: 1, type: 1, timestamp: -1 }); // 타입별 메시지 조회
 
-// 읽음 처리 Static 메소드 개선
+// 사용자별 메시지 조회 인덱스
+MessageSchema.index({ sender: 1, timestamp: -1 }); // 사용자가 보낸 메시지
+MessageSchema.index({ sender: 1, room: 1 }); // 특정 채팅방에서 사용자 메시지
+MessageSchema.index({ 'readers.userId': 1 }); // 읽음 상태 조회
+
+// 검색 최적화 인덱스
+MessageSchema.index({ content: 'text' }); // 메시지 내용 텍스트 검색
+MessageSchema.index({ 
+  room: 1, 
+  content: 'text' 
+}, { 
+  background: true,
+  name: 'message_search_idx'
+}); // 채팅방별 메시지 검색
+
+// 파일 메시지 조회 인덱스
+MessageSchema.index({ room: 1, file: 1 }); // 채팅방별 파일 메시지
+MessageSchema.index({ file: 1 }, { sparse: true }); // 파일별 메시지
+
+// 성능 최적화 인덱스
+MessageSchema.index({ 
+  timestamp: -1 
+}, { 
+  partialFilterExpression: { isDeleted: false },
+  name: 'active_messages_idx'
+}); // 삭제되지 않은 메시지만
+
+MessageSchema.index({
+  room: 1,
+  createdAt: -1
+}, {
+  background: true,
+  name: 'room_messages_idx'
+}); // 채팅방별 최신 메시지
+
+// AI 메시지 조회 인덱스
+MessageSchema.index({ 
+  type: 1, 
+  aiType: 1, 
+  timestamp: -1 
+}, { 
+  sparse: true,
+  name: 'ai_messages_idx'
+}); // AI 메시지 타입별 조회
+
+// 읽음 상태 최적화 인덱스
+MessageSchema.index({
+  room: 1,
+  'readers.userId': 1,
+  timestamp: -1
+}, {
+  background: true,
+  name: 'message_read_status_idx'
+});
+
+// 기존 인덱스들도 유지
+MessageSchema.index({ room: 1, isDeleted: 1 });
+MessageSchema.index({ type: 1 });
+MessageSchema.index({ 'reactions.userId': 1 }); // 리액션 관련 인덱스
+
+// 읽음 처리
 MessageSchema.statics.markAsRead = async function(messageIds, userId) {
   if (!messageIds?.length || !userId) return;
 
@@ -134,7 +191,7 @@ MessageSchema.statics.markAsRead = async function(messageIds, userId) {
   }
 };
 
-// 리액션 처리 메소드 개선
+// 리액션
 MessageSchema.methods.addReaction = async function(emoji, userId) {
   try {
     if (!this.reactions) {
@@ -188,13 +245,13 @@ MessageSchema.methods.removeReaction = async function(emoji, userId) {
   }
 };
 
-// 메시지 소프트 삭제 메소드 추가
+// soft delete
 MessageSchema.methods.softDelete = async function() {
   this.isDeleted = true;
   await this.save();
 };
 
-// 메시지 삭제 전 후크 개선
+// 파일 삭제 후크
 MessageSchema.pre('remove', async function(next) {
   try {
     if (this.type === 'file' && this.file) {
@@ -212,7 +269,7 @@ MessageSchema.pre('remove', async function(next) {
   }
 });
 
-// 메시지 저장 전 후크 개선
+// 저장 전 처리
 MessageSchema.pre('save', function(next) {
   try {
     if (this.content && this.type !== 'file') {
@@ -233,17 +290,14 @@ MessageSchema.pre('save', function(next) {
   }
 });
 
-// JSON 변환 메소드 개선
+// toJSON 개선
 MessageSchema.methods.toJSON = function() {
   try {
     const obj = this.toObject();
-    
-    // 불필요한 필드 제거
     delete obj.__v;
     delete obj.updatedAt;
     delete obj.isDeleted;
-    
-    // reactions Map을 일반 객체로 변환
+
     if (obj.reactions) {
       obj.reactions = Object.fromEntries(obj.reactions);
     }

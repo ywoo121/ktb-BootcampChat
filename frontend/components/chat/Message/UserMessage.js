@@ -6,11 +6,13 @@ import ReadStatus from '../ReadStatus';
 import { generateColorFromEmail, getContrastTextColor } from '../../../utils/colorUtils';
 
 const UserMessage = ({
-  msg = {}, 
-  isMine = false, 
+  msg = {},
+  isStreaming = false,
+  isAegyo = false,
+  isMine = false,
   currentUser = null,
-  onReactionAdd,
-  onReactionRemove,
+  onReactionAdd = () => {},
+  onReactionRemove = () => {},
   room = null,
   messageRef,
   socketRef
@@ -51,9 +53,19 @@ const UserMessage = ({
             {isMine ? '나' : msg.displayName || msg.sender?.name}
           </span>
         </div>
-        <div className={`message-bubble ${isMine ? 'message-mine' : 'message-other'} last relative group`}>
+        <div className={[
+          'message-bubble',
+          isMine ? 'message-mine' : 'message-other',
+          isAegyo ? 'message-aegyo' : '',
+          'last', 'relative', 'group'
+        ].join(' ')}>
           <div className="message-content">
             <MessageContent content={msg.content} />
+            {isStreaming && (
+              <div className="typing-indicator">
+                <span></span><span></span><span></span>
+              </div>
+            )}
           </div>
           <div className="message-footer">
             <div className="message-time mr-3">
@@ -66,6 +78,7 @@ const UserMessage = ({
               messageId={msg._id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
+              senderId={msg.sender?.id || msg.sender?._id}
               socketRef={socketRef}
             />            
           </div>
@@ -84,15 +97,6 @@ const UserMessage = ({
       </div>
     </div>
   );
-};
-
-UserMessage.defaultProps = {
-  msg: {},
-  isMine: false,
-  currentUser: null,
-  onReactionAdd: () => {},
-  onReactionRemove: () => {},
-  room: null
 };
 
 export default React.memo(UserMessage);

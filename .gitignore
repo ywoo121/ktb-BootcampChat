@@ -26,3 +26,5 @@ Thumbs.db
 
 # VSCode settings
 .vscode/
+
+e2e/playwright-report/data
