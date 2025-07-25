@@ -4,6 +4,7 @@ import { LikeIcon, CopyIcon } from '@vapor-ui/icons';
 import { Button, IconButton } from '@vapor-ui/core';
 import EmojiPicker from '../EmojiPicker';
 import { Toast } from '../../Toast';
+import TranslationButton from '../../translation/TranslationButton';
 
 const MessageActions = ({ 
   messageId = '',
@@ -13,7 +14,9 @@ const MessageActions = ({
   onReactionAdd = () => {},
   onReactionRemove = () => {},
   isMine = false,
-  room = null
+  room = null,
+  message = null,
+  socketRef = null
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [tooltipStates, setTooltipStates] = useState({});
@@ -248,6 +251,12 @@ const MessageActions = ({
           >
             <CopyIcon size={16} />
           </IconButton>
+          <TranslationButton
+            message={message}
+            socketRef={socketRef}
+            currentRoom={room}
+            className="message-action-translation"
+          />
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ const redisClient = require('../utils/redisClient');
 const SessionService = require('../services/sessionService');
 const audioService = require('../services/audioService');
 const aiService = require('../services/aiService');
+const translationService = require('../services/translationService');
 
 module.exports = function (io) {
   const connectedUsers = new Map();
@@ -1582,6 +1583,138 @@ module.exports = function (io) {
       });
     }
   }
+
+  // Translation socket events
+  io.on('connection', (socket) => {
+    // Handle translation request
+    socket.on('translateMessage', async ({ messageId, text, targetLang, roomId }) => {
+      try {
+        if (!messageId || !text || !targetLang || !roomId) {
+          socket.emit('translationError', {
+            messageId,
+            error: 'Missing required parameters'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const userRoom = userRooms.get(socket.userId);
+        if (!userRoom || !userRoom.has(roomId)) {
+          socket.emit('translationError', {
+            messageId,
+            error: 'Not authorized to translate in this room'
+          });
+          return;
+        }
+
+        logDebug('Translation request', {
+          messageId,
+          targetLang,
+          textLength: text.length,
+          userId: socket.userId
+        });
+
+        // Generate translation using streaming
+        await translationService.translateMessageStream(text, targetLang, {
+          onStart: () => {
+            socket.emit('translationStart', {
+              messageId,
+              targetLang
+            });
+          },
+          onChunk: async (chunk) => {
+            socket.emit('translationChunk', {
+              messageId,
+              chunk: chunk.currentChunk,
+              targetLang
+            });
+          },
+          onComplete: async (result) => {
+            socket.emit('translationComplete', {
+              messageId,
+              originalText: result.originalText,
+              translatedText: result.translatedText,
+              sourceLang: result.sourceLang,
+              targetLang: result.targetLang
+            });
+
+            logDebug('Translation completed', {
+              messageId,
+              sourceLang: result.sourceLang,
+              targetLang: result.targetLang,
+              userId: socket.userId
+            });
+          },
+          onError: (error) => {
+            socket.emit('translationError', {
+              messageId,
+              error: error.message || 'Translation failed'
+            });
+
+            logDebug('Translation error', {
+              messageId,
+              error: error.message,
+              userId: socket.userId
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Translation socket error:', error);
+        socket.emit('translationError', {
+          messageId,
+          error: 'Translation service error'
+        });
+      }
+    });
+
+    // Handle language detection request
+    socket.on('detectLanguage', async ({ text, messageId }) => {
+      try {
+        if (!text) {
+          socket.emit('languageDetectionError', {
+            messageId,
+            error: 'Text is required'
+          });
+          return;
+        }
+
+        const detectedLang = await translationService.detectLanguage(text);
+        const languages = translationService.getSupportedLanguages();
+
+        socket.emit('languageDetected', {
+          messageId,
+          detectedLanguage: detectedLang,
+          languageName: languages[detectedLang] || 'Unknown',
+          text
+        });
+
+        logDebug('Language detected', {
+          messageId,
+          detectedLang,
+          userId: socket.userId
+        });
+      } catch (error) {
+        console.error('Language detection error:', error);
+        socket.emit('languageDetectionError', {
+          messageId,
+          error: 'Language detection failed'
+        });
+      }
+    });
+
+    // Handle get supported languages request
+    socket.on('getSupportedLanguages', () => {
+      try {
+        const languages = translationService.getSupportedLanguages();
+        socket.emit('supportedLanguages', { languages });
+      } catch (error) {
+        console.error('Get supported languages error:', error);
+        socket.emit('supportedLanguagesError', {
+          error: 'Failed to get supported languages'
+        });
+      }
+    });
+  });
 
   return io;
 };

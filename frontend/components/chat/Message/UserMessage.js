@@ -93,6 +93,8 @@ const UserMessage = ({
           onReactionRemove={onReactionRemove}
           isMine={isMine}
           room={room}
+          message={msg}
+          socketRef={socketRef}
         />
       </div>
     </div>

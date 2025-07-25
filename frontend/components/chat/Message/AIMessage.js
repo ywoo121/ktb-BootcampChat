@@ -53,6 +53,12 @@ const AIMessage = ({
         ? "Tax AI"
         : msg.aiType === "algorithmAI"
         ? "Algorithm AI"
+        : msg.aiType === "ragAI"
+        ? "RAG AI"
+        : msg.aiType === "docAI"
+        ? "Documentation AI"
+        : msg.aiType === "helpAI"
+        ? "Help AI"
         : "Wayne AI", // 기본값은 'Wayne AI'
     email:
       msg.aiType === "wayneAI"
@@ -63,6 +69,12 @@ const AIMessage = ({
         ? "ai@tax.ai"
         : msg.aiType === "algorithmAI"
         ? "ai@algorithm.ai"
+        : msg.aiType === "ragAI"
+        ? "ai@rag.ai"
+        : msg.aiType === "docAI"
+        ? "ai@doc.ai"
+        : msg.aiType === "helpAI"
+        ? "ai@help.ai"
         : "ai@wayne.ai", // 기본 이메일은 'ai@wayne.ai'
     avatarInitial:
       msg.aiType === "wayneAI"
@@ -73,6 +85,12 @@ const AIMessage = ({
         ? "T"
         : msg.aiType === "algorithmAI"
         ? "A"
+        : msg.aiType === "ragAI"
+        ? "R"
+        : msg.aiType === "docAI"
+        ? "D"
+        : msg.aiType === "helpAI"
+        ? "H"
         : "W", // 기본 이니셜은 'W'
   };
 
@@ -272,6 +290,8 @@ const AIMessage = ({
         onReactionRemove={onReactionRemove}
         isMine={isMine}
         room={room}
+        message={msg}
+        socketRef={socketRef}
       />
     </div>
   );
