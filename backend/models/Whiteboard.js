@@ -1,29 +1,57 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const WhiteboardSchema = new mongoose.Schema({
-  room: {
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  creator: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Room',
-    required: true
+    ref: "User",
+    required: true,
   },
-  data: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
+  hasPassword: {
+    type: Boolean,
+    default: false,
   },
-  lastModified: {
+  password: {
+    type: String,
+    select: false,
+  },
+  participants: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+  createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
-  lastModifiedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }
-}, {
-  timestamps: true
 });
 
-// 인덱스 추가
-WhiteboardSchema.index({ room: 1 });
-WhiteboardSchema.index({ lastModified: -1 });
+// 비밀번호 해싱
+WhiteboardSchema.pre("save", async function (next) {
+  if (this.isModified("password") && this.password) {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    this.hasPassword = true;
+  }
+  if (!this.password) {
+    this.hasPassword = false;
+  }
+  next();
+});
 
-module.exports = mongoose.model('Whiteboard', WhiteboardSchema);
+// 비밀번호 확인
+WhiteboardSchema.methods.checkPassword = async function (password) {
+  if (!this.hasPassword) return true;
+  const whiteboard = await this.constructor
+    .findById(this.id)
+    .select("+password");
+  return await bcrypt.compare(password, whiteboard.password);
+};
+
+module.exports = mongoose.model("Whiteboard", WhiteboardSchema);
