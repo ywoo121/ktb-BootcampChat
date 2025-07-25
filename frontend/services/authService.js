@@ -186,7 +186,7 @@ class AuthService {
   async register(userData) {
     try {
       const response = await api.post('/api/auth/register', userData);
-
+  
       if (response.data?.success && response.data?.token) {
         const userInfo = {
           id: response.data.user._id,
@@ -197,18 +197,22 @@ class AuthService {
           sessionId: response.data.sessionId,
           lastActivity: Date.now()
         };
+  
         localStorage.setItem('user', JSON.stringify(userInfo));
-
-        // 인증 상태 변경 이벤트 발생
         window.dispatchEvent(new Event('authStateChange'));
-
+  
         return userInfo;
       }
-
+  
       throw new Error(response.data?.message || '회원가입에 실패했습니다.');
     } catch (error) {
-      console.error('Registration error:', error);
-      throw this._handleError(error);
+      if (error.status === 409) {
+        alert('이미 등록된 이메일입니다.');
+        return null;
+      }
+  
+      alert(error.message || '회원가입 중 오류가 발생했습니다.');
+      return null;
     }
   }
   
