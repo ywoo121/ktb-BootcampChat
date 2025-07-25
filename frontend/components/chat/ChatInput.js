@@ -10,6 +10,7 @@ import MarkdownToolbar from './MarkdownToolbar';
 import EmojiPicker from './EmojiPicker';
 import MentionDropdown from './MentionDropdown';
 import FilePreview from './FilePreview';
+import VoiceRecorder from './VoiceRecorder';
 import fileService from '../../services/fileService';
 import socket from '../../services/socket';
 
@@ -45,6 +46,8 @@ const ChatInput = forwardRef(({
   const [uploadError, setUploadError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [voiceError, setVoiceError] = useState(null);
   const typingTimeoutRef = useRef(null);
   
   const handleFileValidationAndPreview = useCallback(async (file) => {
@@ -80,6 +83,41 @@ const ChatInput = forwardRef(({
     URL.revokeObjectURL(fileToRemove.url);
     setUploadError(null);
     setUploadProgress(0);
+  }, []);
+
+  // 음성 녹음 관련 핸들러
+  const handleVoiceTranscription = useCallback((text) => {
+    if (text) {
+      const newMessage = message + (message ? ' ' : '') + text;
+      setMessage(newMessage);
+      
+      // 이벤트 객체 형태로 onMessageChange 호출
+      const fakeEvent = {
+        target: {
+          value: newMessage,
+          selectionStart: newMessage.length
+        }
+      };
+      onMessageChange(fakeEvent);
+      
+      setShowVoiceRecorder(false);
+      setVoiceError(null);
+      
+      // 포커스를 텍스트 입력창으로 이동
+      setTimeout(() => {
+        messageInputRef?.current?.focus();
+      }, 100);
+    }
+  }, [message, setMessage, onMessageChange, messageInputRef]);
+
+  const handleVoiceError = useCallback((error) => {
+    setVoiceError(error);
+    console.error('음성 인식 오류:', error);
+  }, []);
+
+  const toggleVoiceRecorder = useCallback(() => {
+    setShowVoiceRecorder(prev => !prev);
+    setVoiceError(null);
   }, []);
 
   const handleFileDrop = useCallback(async (e) => {
@@ -629,6 +667,23 @@ const ChatInput = forwardRef(({
             >
               <AttachFileOutlineIcon size={20} />
             </IconButton>
+            <IconButton
+              variant="ghost"
+              size="md"
+              onClick={toggleVoiceRecorder}
+              disabled={isDisabled}
+              aria-label="음성 녹음"
+              style={{ 
+                transition: 'all 0.2s ease',
+                color: showVoiceRecorder ? 'var(--vapor-color-primary)' : 'inherit'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C10.34 2 9 3.34 9 5V11C9 12.66 10.34 14 12 14S15 12.66 15 11V5C15 3.34 13.66 2 12 2ZM19 11C19 14.53 16.39 17.44 13 17.93V21H11V17.93C7.61 17.44 5 14.53 5 11H7C7 13.76 9.24 16 12 16S17 13.76 17 11H19Z"/>
+              </svg>
+            </IconButton>
             <input
               type="file"
               ref={fileInputRef}
@@ -638,6 +693,31 @@ const ChatInput = forwardRef(({
             />
           </HStack>
         </div>
+
+        {/* 음성 녹음 컴포넌트 */}
+        {showVoiceRecorder && (
+          <div style={{ marginTop: '8px' }}>
+            <VoiceRecorder
+              onTranscription={handleVoiceTranscription}
+              onError={handleVoiceError}
+              disabled={isDisabled}
+              language="ko"
+            />
+            {voiceError && (
+              <div style={{ 
+                marginTop: '4px', 
+                padding: '8px', 
+                backgroundColor: 'var(--vapor-color-danger-light)', 
+                border: '1px solid var(--vapor-color-danger)',
+                borderRadius: '4px',
+                fontSize: '0.875rem',
+                color: 'var(--vapor-color-danger-dark)'
+              }}>
+                {voiceError}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       </div>
 
