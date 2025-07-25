@@ -258,6 +258,7 @@ const Register = () => {
                 <Stack gap="100" align="center">
                   <Text typography="body3">이미 계정이 있으신가요?</Text>
                   <Button
+                    type='button'
                     size="md"
                     onClick={() => router.push('/')}
                     disabled={loading}
