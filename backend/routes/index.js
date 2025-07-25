@@ -11,6 +11,7 @@ const sttRoutes = require('./api/stt');
 const translationRoutes = require('./translation');
 const slashCommandRoutes = require('./slashCommands');
 const detectiveGameRoutes = require('./detectiveGame');
+const searchRoutes = require('./search');
 
 console.log('Route modules loaded successfully');
 
@@ -38,7 +39,8 @@ router.get('/', (req, res) => {
       ai: '/ai',
       translation: '/translation',
       slashCommands: '/slash-commands',
-      detectiveGame: '/detective-game'
+      detectiveGame: '/detective-game',
+      search: '/search'
     }
   });
 });
@@ -53,7 +55,8 @@ router.use('/stt', sttRoutes);
 router.use('/translation', translationRoutes);
 router.use('/slash-commands', slashCommandRoutes);
 router.use('/detective-game', detectiveGameRoutes);
+router.use('/search', searchRoutes);
 
-console.log('Routes mounted: /auth, /users, /rooms, /files, /stt, /translation, /slash-commands, /detective-game');
+console.log('Routes mounted: /auth, /users, /rooms, /files, /stt, /translation, /slash-commands, /detective-game, /search');
 
 module.exports = router;

@@ -12,6 +12,7 @@ import TypingIndicator from "../components/chat/TypingIndicator";
 import ChatInput from '../components/chat/ChatInput';
 import Whiteboard from '../components/whiteboard/Whiteboard';
 import DetectiveGamePanel from '../components/detective/DetectiveGamePanel';
+import SearchPanel from '../components/search/SearchPanel';
 import { useEmojiRain } from '../components/effects/EmojiRain';
 import { generateColorFromEmail, getContrastTextColor } from '../utils/colorUtils';
 
@@ -60,6 +61,7 @@ const ChatPage = () => {
 
   const [isWhiteboardVisible, setIsWhiteboardVisible] = useState(false);
   const [isDetectiveGameVisible, setIsDetectiveGameVisible] = useState(false);
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
 
   // Emoji rain functionality
   const { triggerEmojiRain, EmojiRainRenderer } = useEmojiRain();
@@ -88,6 +90,10 @@ const ChatPage = () => {
 
   const handleDetectiveGameToggle = () => {
     setIsDetectiveGameVisible(!isDetectiveGameVisible);
+  };
+
+  const handleSearchToggle = () => {
+    setIsSearchVisible(!isSearchVisible);
   };
 
   const renderParticipants = () => {
@@ -348,6 +354,7 @@ const ChatPage = () => {
               fightblockMode={fightblockMode}
               onWhiteboardToggle={handleWhiteboardToggle}
               onDetectiveGameToggle={handleDetectiveGameToggle}
+              onSearchToggle={handleSearchToggle}
             />
             <TypingIndicator/>
           </Card.Footer>
@@ -404,6 +411,21 @@ const ChatPage = () => {
             currentUser={currentUser}
           />
         </div>
+      )}
+
+      {/* Search Panel */}
+      {isSearchVisible && (
+        <SearchPanel
+          onClose={() => setIsSearchVisible(false)}
+          onRoomSelect={(selectedRoom) => {
+            // 채팅방 이동 로직 (필요시 구현)
+            console.log('Selected room:', selectedRoom);
+          }}
+          onUserSelect={(selectedUser) => {
+            // 사용자 선택 로직 (필요시 구현) 
+            console.log('Selected user:', selectedUser);
+          }}
+        />
       )}
 
       {/* Emoji Rain Effects */}

@@ -39,7 +39,8 @@ const ChatInput = forwardRef(({
   fightblockMode = false, // 싸움방지 모드 prop 추가
   socketRef = null, // socket reference for voice features
   onWhiteboardToggle = () => {}, // whiteboard toggle handler
-  onDetectiveGameToggle = () => {} // detective game toggle handler
+  onDetectiveGameToggle = () => {}, // detective game toggle handler
+  onSearchToggle = () => {} // search toggle handler
 }, ref) => {
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
@@ -836,6 +837,22 @@ const ChatInput = forwardRef(({
                   <path d="m4.2 4.2 4.2 4.2M15.6 15.6l4.2 4.2"/>
                   <path d="M1 12h6M17 12h6"/>
                   <path d="m4.2 19.8 4.2-4.2M15.6 8.4l4.2-4.2"/>
+                </svg>
+              </IconButton>
+              <IconButton
+                variant="ghost"
+                size="md"
+                onClick={onSearchToggle}
+                disabled={isDisabled}
+                aria-label="검색"
+                title="채팅방 검색"
+                style={{ transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.35-4.35"/>
                 </svg>
               </IconButton>
               <input
