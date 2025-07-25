@@ -1,7 +1,7 @@
 import React from 'react';
-import { 
-  AlertCircle, 
-  WifiOff 
+import {
+  AlertCircle,
+  WifiOff
 } from 'lucide-react';
 import { Button, Text, Callout, Card, Badge, Avatar } from '@vapor-ui/core';
 import { Flex, Box, HStack } from '../components/ui/Layout';
@@ -67,13 +67,13 @@ const ChatPage = () => {
           {participants.slice(0, maxVisibleAvatars).map(participant => {
             const backgroundColor = generateColorFromEmail(participant.email);
             const color = getContrastTextColor(backgroundColor);
-            
+
             return (
               <Avatar.Root
                 key={participant._id}
                 size="md"
-                style={{ 
-                  backgroundColor, 
+                style={{
+                  backgroundColor,
                   color,
                   flexShrink: 0
                 }}
@@ -87,7 +87,7 @@ const ChatPage = () => {
           {remainingCount > 0 && (
             <Avatar.Root
               size="md"
-              style={{ 
+              style={{
                 backgroundColor: 'var(--vapor-color-secondary)',
                 color: 'white',
                 flexShrink: 0
@@ -275,7 +275,7 @@ const ChatPage = () => {
           <Card.Footer 
             className="chat-room-footer"
             style={fightblockMode ? { background: '#ffe4ef', color: '#7a2250' } : {}}>
-            <ChatInput 
+            <ChatInput
               message={message}
               onMessageChange={handleMessageChange}
               onSubmit={handleMessageSubmit}
@@ -296,6 +296,7 @@ const ChatPage = () => {
               setMentionFilter={setMentionFilter}
               setMentionIndex={setMentionIndex}
               room={room} // room 객체 전달
+              socketRef={socketRef} // Add socketRef for voice features
               onMentionSelect={(user) => {
                 insertMention(user);
                 setShowMentionList(false);

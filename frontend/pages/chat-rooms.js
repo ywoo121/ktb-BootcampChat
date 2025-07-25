@@ -599,17 +599,21 @@ function ChatRoomsComponent() {
       console.error('Room join error:', error);
       
       let errorMessage = '입장에 실패했습니다.';
+      alert('비밀번호가 일치하지 않습니다')
+      
       if (error.response?.status === 404) {
         errorMessage = '채팅방을 찾을 수 없습니다.';
       } else if (error.response?.status === 403) {
-        errorMessage = '채팅방 입장 권한이 없습니다.';
+        errorMessage = '비밀번호가 틀렸거나 입장 권한이 없습니다.';
+      } else if (error.response?.status === 401) {
+        errorMessage = '비밀번호가 틀렸거나 입장 권한이 없습니다.';
       }
       
-      setError({
-        title: '채팅방 입장 실패',
-        message: error.response?.data?.message || errorMessage,
-        type: 'danger'
-      });
+      // setError({
+      //   title: '채팅방 입장 실패',
+      //   message: error.response?.data?.message || errorMessage,
+      //   type: 'danger'
+      // });
     } finally {
       setJoiningRoom(false);
     }

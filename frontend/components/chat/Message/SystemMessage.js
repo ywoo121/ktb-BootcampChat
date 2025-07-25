@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SystemMessage = ({ msg, fightblockMode }) => {
+const SystemMessage = React.forwardRef(({ msg, fightblockMode }, ref) => {
   const formattedTime = new Date(msg.timestamp).toLocaleString('ko-KR', {
     year: 'numeric',
     month: 'long',
@@ -8,13 +8,14 @@ const SystemMessage = ({ msg, fightblockMode }) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false
+    hour12: false,
   }).replace(/\./g, '년').replace(/\s/g, ' ').replace('일 ', '일 ');
 
   console.log(formattedTime);
-  
+
   return (
     <div
+      ref={ref}
       className="message-system"
       style={fightblockMode ? {
         color: '#7a2250',
@@ -36,6 +37,9 @@ const SystemMessage = ({ msg, fightblockMode }) => {
       )}
     </div>
   );
-};
+});
+
+// 디버깅을 위한 이름 설정
+SystemMessage.displayName = 'SystemMessage';
 
 export default React.memo(SystemMessage);
