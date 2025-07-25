@@ -9,6 +9,7 @@ const SessionService = require('../services/sessionService');
 const audioService = require('../services/audioService');
 const aiService = require('../services/aiService');
 const translationService = require('../services/translationService');
+const slashCommandService = require('../services/slashCommandService');
 
 module.exports = function (io) {
   const connectedUsers = new Map();
@@ -1711,6 +1712,186 @@ module.exports = function (io) {
         console.error('Get supported languages error:', error);
         socket.emit('supportedLanguagesError', {
           error: 'Failed to get supported languages'
+        });
+      }
+    });
+
+    // Handle slash command autocomplete
+    socket.on('slashCommandSearch', ({ query }) => {
+      try {
+        const commands = slashCommandService.searchCommands(query);
+        socket.emit('slashCommandSearchResults', {
+          query,
+          commands: commands.slice(0, 10) // Limit to 10 results
+        });
+      } catch (error) {
+        console.error('Slash command search error:', error);
+        socket.emit('slashCommandSearchError', {
+          error: 'Failed to search commands'
+        });
+      }
+    });
+
+    // Handle slash command execution
+    socket.on('executeSlashCommand', async ({ command, args, roomId }) => {
+      try {
+        if (!command || !roomId) {
+          socket.emit('slashCommandError', {
+            error: 'Missing required parameters'
+          });
+          return;
+        }
+
+        // Get user data
+        const user = connectedUsers.get(socket.id);
+        if (!user) {
+          socket.emit('slashCommandError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const userRoom = userRooms.get(socket.userId);
+        if (!userRoom || !userRoom.has(roomId)) {
+          socket.emit('slashCommandError', {
+            error: 'Not authorized to execute commands in this room'
+          });
+          return;
+        }
+
+        // Get room data
+        const room = await Room.findById(roomId);
+        if (!room) {
+          socket.emit('slashCommandError', {
+            error: 'Room not found'
+          });
+          return;
+        }
+
+        logDebug('Slash command execution', {
+          command,
+          args,
+          roomId,
+          userId: socket.userId
+        });
+
+        // Execute command with socket callback for room-wide effects
+        const socketCallback = (eventName, data) => {
+          io.to(roomId).emit(eventName, data);
+        };
+
+        const result = await slashCommandService.executeCommand(
+          command,
+          args,
+          user,
+          room,
+          socketCallback
+        );
+
+        if (!result.success) {
+          socket.emit('slashCommandError', {
+            error: result.error
+          });
+          return;
+        }
+
+        // Send result back to user
+        socket.emit('slashCommandResult', {
+          command,
+          args,
+          result: result.result
+        });
+
+        // Handle special command types that need to be broadcast
+        if (result.result.type === 'emoji_rain') {
+          // Emoji rain is already handled by socketCallback
+        } else if (result.result.type === 'action_message') {
+          // Broadcast action message to room
+          io.to(roomId).emit('actionMessage', {
+            userId: socket.userId,
+            username: user.name,
+            action: result.result.action,
+            message: result.result.message,
+            timestamp: new Date()
+          });
+        } else if (['dice_roll', 'coin_flip'].includes(result.result.type)) {
+          // Broadcast game results to room
+          io.to(roomId).emit('gameResult', {
+            userId: socket.userId,
+            username: user.name,
+            type: result.result.type,
+            result: result.result,
+            timestamp: new Date()
+          });
+        }
+
+        logDebug('Slash command executed successfully', {
+          command,
+          resultType: result.result.type,
+          userId: socket.userId
+        });
+      } catch (error) {
+        console.error('Slash command execution error:', error);
+        socket.emit('slashCommandError', {
+          error: 'Command execution failed'
+        });
+      }
+    });
+
+    // Handle emoji rain trigger (can also be triggered independently)
+    socket.on('triggerEmojiRain', ({ emojis, intensity, duration, roomId }) => {
+      try {
+        if (!roomId) {
+          socket.emit('emojiRainError', {
+            error: 'Room ID is required'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const userRoom = userRooms.get(socket.userId);
+        if (!userRoom || !userRoom.has(roomId)) {
+          socket.emit('emojiRainError', {
+            error: 'Not authorized to trigger emoji rain in this room'
+          });
+          return;
+        }
+
+        const user = connectedUsers.get(socket.id);
+        if (!user) {
+          socket.emit('emojiRainError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        // Default values
+        const finalEmojis = emojis && emojis.length > 0 ? emojis : ['🎉'];
+        const finalIntensity = intensity || 'medium';
+        const finalDuration = duration || slashCommandService.getIntensityDuration(finalIntensity);
+
+        // Broadcast emoji rain to all users in the room
+        io.to(roomId).emit('emojiRain', {
+          emojis: finalEmojis,
+          intensity: finalIntensity,
+          duration: finalDuration,
+          user: user.name,
+          userId: socket.userId,
+          timestamp: new Date()
+        });
+
+        logDebug('Emoji rain triggered', {
+          emojis: finalEmojis,
+          intensity: finalIntensity,
+          duration: finalDuration,
+          roomId,
+          userId: socket.userId
+        });
+      } catch (error) {
+        console.error('Emoji rain trigger error:', error);
+        socket.emit('emojiRainError', {
+          error: 'Failed to trigger emoji rain'
         });
       }
     });

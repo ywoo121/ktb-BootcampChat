@@ -9,10 +9,12 @@ import { Flex, HStack } from '../ui/Layout';
 import MarkdownToolbar from './MarkdownToolbar';
 import EmojiPicker from './EmojiPicker';
 import MentionDropdown from './MentionDropdown';
+import SlashCommandDropdown from './SlashCommandDropdown';
 import FilePreview from './FilePreview';
 import VoiceRecorder from './VoiceRecorder';
 import fileService from '../../services/fileService';
 import socket from '../../services/socket';
+import { useSlashCommands } from '../../hooks/useSlashCommands';
 
 const ChatInput = forwardRef(({
   message = '',
@@ -51,6 +53,20 @@ const ChatInput = forwardRef(({
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
   const [voiceError, setVoiceError] = useState(null);
   const typingTimeoutRef = useRef(null);
+
+  // Slash command functionality
+  const {
+    isDropdownOpen: isSlashDropdownOpen,
+    searchQuery: slashSearchQuery,
+    dropdownPosition: slashDropdownPosition,
+    suggestions: slashSuggestions,
+    handleInputChange: handleSlashInputChange,
+    executeSlashCommand,
+    handleCommandSelect: handleSlashCommandSelect,
+    closeDropdown: closeSlashDropdown,
+    isSlashCommand,
+    formatCommandResult
+  } = useSlashCommands(socketRef, room);
   
   // Handle voice transcription
   const handleVoiceTranscription = useCallback((transcription, isPartial = false) => {
@@ -178,11 +194,26 @@ const ChatInput = forwardRef(({
         setUploadError(error.message);
       }
     } else if (message.trim()) {
-      onSubmit({
-        type: 'text',
-        content: message.trim()
-      });
-      setMessage('');
+      // Check if it's a slash command
+      if (isSlashCommand(message.trim())) {
+        const result = executeSlashCommand(message.trim());
+        
+        if (result && result.type === 'clear_local') {
+          // Handle local clear command
+          onSubmit({
+            type: 'clear_local'
+          });
+        }
+        
+        setMessage('');
+        closeSlashDropdown();
+      } else {
+        onSubmit({
+          type: 'text',
+          content: message.trim()
+        });
+        setMessage('');
+      }
       
       // Reset textarea height after submission
       setTimeout(() => {
@@ -193,7 +224,7 @@ const ChatInput = forwardRef(({
         }
       }, 0);
     }
-  }, [files, message, onSubmit, setMessage, messageInputRef]);
+  }, [files, message, onSubmit, setMessage, messageInputRef, isSlashCommand, executeSlashCommand, closeSlashDropdown]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -338,6 +369,15 @@ const ChatInput = forwardRef(({
       socket.emit('stopTyping');
     }, 1000); // 1초 동안 입력 없으면 stop
 
+    // Handle slash commands
+    const isSlashCmd = handleSlashInputChange(value, textarea);
+    if (isSlashCmd) {
+      // Close mention dropdown if open
+      setShowMentionList(false);
+      return;
+    }
+
+    // Handle mentions (only if not a slash command)
     if (lastAtSymbol !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtSymbol + 1);
       const hasSpaceAfterAt = textAfterAt.includes(' ');
@@ -355,7 +395,7 @@ const ChatInput = forwardRef(({
     }
 
     setShowMentionList(false);
-  }, [onMessageChange, setMentionFilter, setShowMentionList, setMentionIndex, calculateMentionPosition]);
+  }, [onMessageChange, setMentionFilter, setShowMentionList, setMentionIndex, calculateMentionPosition, handleSlashInputChange]);
 
   const handleMentionSelect = useCallback((user) => {
     if (!messageInputRef?.current) return;
@@ -806,6 +846,26 @@ const ChatInput = forwardRef(({
           />
         </div>
       )}
+
+      {/* Slash Command Dropdown */}
+      <SlashCommandDropdown
+        isOpen={isSlashDropdownOpen}
+        onClose={closeSlashDropdown}
+        onSelect={(command) => {
+          const newMessage = handleSlashCommandSelect(command);
+          setMessage(newMessage);
+          if (messageInputRef?.current) {
+            messageInputRef.current.focus();
+            // Set cursor to end
+            setTimeout(() => {
+              const length = newMessage.length;
+              messageInputRef.current.setSelectionRange(length, length);
+            }, 0);
+          }
+        }}
+        searchQuery={slashSearchQuery}
+        position={slashDropdownPosition}
+      />
     </>
   );
 });

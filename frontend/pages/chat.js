@@ -11,6 +11,7 @@ import ChatMessages from '../components/chat/ChatMessages';
 import TypingIndicator from "../components/chat/TypingIndicator";
 import ChatInput from '../components/chat/ChatInput';
 import Whiteboard from '../components/whiteboard/Whiteboard';
+import { useEmojiRain } from '../components/effects/EmojiRain';
 import { generateColorFromEmail, getContrastTextColor } from '../utils/colorUtils';
 
 const ChatPage = () => {
@@ -57,6 +58,27 @@ const ChatPage = () => {
   } = useChatRoom();
 
   const [isWhiteboardVisible, setIsWhiteboardVisible] = useState(false);
+
+  // Emoji rain functionality
+  const { triggerEmojiRain, EmojiRainRenderer } = useEmojiRain();
+
+  // Socket event listeners for emoji rain
+  useEffect(() => {
+    if (!socketRef?.current) return;
+
+    const socket = socketRef.current;
+
+    const handleEmojiRain = (data) => {
+      const { emojis, intensity, duration } = data;
+      triggerEmojiRain(emojis, intensity, duration);
+    };
+
+    socket.on('emojiRain', handleEmojiRain);
+
+    return () => {
+      socket.off('emojiRain', handleEmojiRain);
+    };
+  }, [socketRef, triggerEmojiRain]);
 
   const handleWhiteboardToggle = () => {
     setIsWhiteboardVisible(!isWhiteboardVisible);
@@ -335,6 +357,9 @@ const ChatPage = () => {
           onClose={() => setIsWhiteboardVisible(false)}
         />
       )}
+
+      {/* Emoji Rain Effects */}
+      <EmojiRainRenderer />
     </div>
   );
 };
