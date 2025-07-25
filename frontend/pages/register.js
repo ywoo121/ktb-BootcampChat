@@ -104,7 +104,13 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+    
+    // 이름 2자 미만일 경우 예외 처리
+    if (formData.name.trim().length < 2) {
+      setErrors([{ message: '이름은 2자 이상이어야 합니다.' }]);
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }

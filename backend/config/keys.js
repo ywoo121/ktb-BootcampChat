@@ -11,7 +11,11 @@ module.exports = {
   encryptionKey: process.env.ENCRYPTION_KEY || DEFAULT_ENCRYPTION_KEY,
   passwordSalt: process.env.PASSWORD_SALT || DEFAULT_PASSWORD_SALT,
   redisHost: process.env.REDIS_HOST,
+  redisPassword: process.env.REDIS_PASSWORD,
   redisPort: process.env.REDIS_PORT,
   openaiApiKey: process.env.OPENAI_API_KEY,
-  vectorDbEndpoint: process.env.VECTOR_DB_ENDPOINT,
+  pineconeKey: process.env.PINECONE_API_KEY,
+  pineconeEnv: process.env.PINECONE_ENV,
+  pineconeIndex: process.env.PINECONE_INDEX,
+  pineconeIndex2: process.env.PINECONE_INDEX2,
 };
