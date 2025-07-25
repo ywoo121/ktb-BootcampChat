@@ -11,6 +11,7 @@ import ChatMessages from '../components/chat/ChatMessages';
 import TypingIndicator from "../components/chat/TypingIndicator";
 import ChatInput from '../components/chat/ChatInput';
 import Whiteboard from '../components/whiteboard/Whiteboard';
+import DetectiveGamePanel from '../components/detective/DetectiveGamePanel';
 import { useEmojiRain } from '../components/effects/EmojiRain';
 import { generateColorFromEmail, getContrastTextColor } from '../utils/colorUtils';
 
@@ -58,6 +59,7 @@ const ChatPage = () => {
   } = useChatRoom();
 
   const [isWhiteboardVisible, setIsWhiteboardVisible] = useState(false);
+  const [isDetectiveGameVisible, setIsDetectiveGameVisible] = useState(false);
 
   // Emoji rain functionality
   const { triggerEmojiRain, EmojiRainRenderer } = useEmojiRain();
@@ -82,6 +84,10 @@ const ChatPage = () => {
 
   const handleWhiteboardToggle = () => {
     setIsWhiteboardVisible(!isWhiteboardVisible);
+  };
+
+  const handleDetectiveGameToggle = () => {
+    setIsDetectiveGameVisible(!isDetectiveGameVisible);
   };
 
   const renderParticipants = () => {
@@ -341,6 +347,7 @@ const ChatPage = () => {
               onFileRemove={removeFilePreview}
               fightblockMode={fightblockMode}
               onWhiteboardToggle={handleWhiteboardToggle}
+              onDetectiveGameToggle={handleDetectiveGameToggle}
             />
             <TypingIndicator/>
           </Card.Footer>
@@ -356,6 +363,47 @@ const ChatPage = () => {
           isVisible={isWhiteboardVisible}
           onClose={() => setIsWhiteboardVisible(false)}
         />
+      )}
+
+      {/* Detective Game Panel */}
+      {isDetectiveGameVisible && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          width: '400px',
+          height: '100vh',
+          backgroundColor: 'white',
+          boxShadow: '-2px 0 10px rgba(0,0,0,0.1)',
+          zIndex: 1000,
+          overflowY: 'auto'
+        }}>
+          <div style={{
+            padding: '16px',
+            borderBottom: '1px solid #e5e7eb',
+            backgroundColor: '#f9fafb',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <Text typography="heading5" style={{ fontWeight: 'bold' }}>
+              🕵️ 탐정 게임
+            </Text>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsDetectiveGameVisible(false)}
+              style={{ padding: '4px' }}
+            >
+              ✕
+            </Button>
+          </div>
+          <DetectiveGamePanel
+            socketRef={socketRef}
+            roomId={room?._id}
+            currentUser={currentUser}
+          />
+        </div>
       )}
 
       {/* Emoji Rain Effects */}

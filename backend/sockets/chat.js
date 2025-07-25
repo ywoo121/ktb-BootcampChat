@@ -10,6 +10,7 @@ const audioService = require('../services/audioService');
 const aiService = require('../services/aiService');
 const translationService = require('../services/translationService');
 const slashCommandService = require('../services/slashCommandService');
+const detectiveGameService = require('../services/detectiveGameService');
 
 module.exports = function (io) {
   const connectedUsers = new Map();
@@ -1892,6 +1893,306 @@ module.exports = function (io) {
         console.error('Emoji rain trigger error:', error);
         socket.emit('emojiRainError', {
           error: 'Failed to trigger emoji rain'
+        });
+      }
+    });
+
+    // Detective Game Socket Events
+    socket.on('startDetectiveGame', async ({ roomId, persona, mode }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        if (!roomId || !persona || !mode) {
+          socket.emit('detectiveGameError', {
+            error: 'Missing required parameters'
+          });
+          return;
+        }
+
+        // Check if user is in the room
+        const room = await Room.findOne({
+          _id: roomId,
+          participants: socket.user.id
+        });
+
+        if (!room) {
+          socket.emit('detectiveGameError', {
+            error: 'Not authorized to start game in this room'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.startGame(roomId, persona, mode, socket.user.id);
+        
+        if (result.success) {
+          // Broadcast game start to all users in the room
+          io.to(roomId).emit('detectiveGameStarted', {
+            game: result.game,
+            message: result.message,
+            hostUser: socket.user.name,
+            timestamp: new Date()
+          });
+
+          // Send initial detective message
+          if (result.game.currentMystery) {
+            const detectiveMessage = `${result.game.persona.emoji} ${result.game.persona.greeting}\n\n**새로운 사건:** ${result.game.currentMystery.title}\n\n${result.game.currentMystery.scenario}\n\n단서가 필요하면 "단서"라고 말해주세요!`;
+            
+            io.to(roomId).emit('detectiveMessage', {
+              gameId: result.game.id,
+              persona: result.game.persona,
+              message: detectiveMessage,
+              timestamp: new Date()
+            });
+          }
+        }
+
+        socket.emit('detectiveGameStartResult', result);
+
+        logDebug('Detective game started', {
+          roomId,
+          persona,
+          mode,
+          gameId: result.game?.id,
+          userId: socket.user.id
+        });
+
+      } catch (error) {
+        console.error('Start detective game error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to start detective game'
+        });
+      }
+    });
+
+    socket.on('joinDetectiveGame', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.joinGame(roomId, socket.user.id);
+        
+        if (result.success) {
+          // Notify all users in the room
+          io.to(roomId).emit('detectiveGamePlayerJoined', {
+            userId: socket.user.id,
+            userName: socket.user.name,
+            participants: result.game.participants.length,
+            timestamp: new Date()
+          });
+        }
+
+        socket.emit('joinDetectiveGameResult', result);
+
+      } catch (error) {
+        console.error('Join detective game error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to join detective game'
+        });
+      }
+    });
+
+    socket.on('requestClue', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.getClue(roomId, socket.user.id);
+        
+        if (result.success) {
+          // Broadcast clue to all game participants
+          const gameState = detectiveGameService.getGameState(roomId);
+          if (gameState) {
+            io.to(roomId).emit('detectiveClueRevealed', {
+              clue: result.clue,
+              revealedBy: socket.user.name,
+              cluesRemaining: result.cluesRemaining,
+              totalClues: gameState.currentMystery.clues.length,
+              persona: gameState.persona,
+              timestamp: new Date()
+            });
+          }
+        }
+
+        socket.emit('clueRequestResult', result);
+
+      } catch (error) {
+        console.error('Request clue error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to get clue'
+        });
+      }
+    });
+
+    socket.on('submitGuess', async ({ roomId, guess }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        if (!guess || guess.trim().length === 0) {
+          socket.emit('detectiveGameError', {
+            error: 'Guess cannot be empty'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.submitGuess(roomId, socket.user.id, guess);
+        
+        if (result.success) {
+          const gameState = detectiveGameService.getGameState(roomId);
+          
+          // Broadcast guess result to all participants
+          io.to(roomId).emit('detectiveGuessSubmitted', {
+            guesser: socket.user.name,
+            guess: guess,
+            correct: result.correct,
+            message: result.message,
+            solution: result.solution,
+            hint: result.hint,
+            score: result.score,
+            persona: gameState?.persona,
+            timestamp: new Date()
+          });
+
+          if (result.correct) {
+            // Game solved! Show celebration
+            io.to(roomId).emit('detectiveGameSolved', {
+              winner: socket.user.name,
+              solution: result.solution,
+              score: result.score,
+              persona: gameState?.persona,
+              timestamp: new Date()
+            });
+          }
+        }
+
+        socket.emit('guessSubmitResult', result);
+
+      } catch (error) {
+        console.error('Submit guess error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to submit guess'
+        });
+      }
+    });
+
+    socket.on('detectiveChat', async ({ roomId, message }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const gameState = detectiveGameService.getGameState(roomId);
+        if (!gameState) {
+          socket.emit('detectiveGameError', {
+            error: 'No active detective game in this room'
+          });
+          return;
+        }
+
+        // Generate detective response
+        const response = detectiveGameService.generateDetectiveResponse(
+          roomId, 
+          message, 
+          socket.user.id
+        );
+
+        if (response) {
+          // Broadcast detective response to all participants
+          io.to(roomId).emit('detectiveMessage', {
+            gameId: gameState.id,
+            persona: gameState.persona,
+            message: response,
+            originalMessage: message,
+            askedBy: socket.user.name,
+            timestamp: new Date()
+          });
+        }
+
+      } catch (error) {
+        console.error('Detective chat error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to get detective response'
+        });
+      }
+    });
+
+    socket.on('endDetectiveGame', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const result = detectiveGameService.endGame(roomId);
+        
+        if (result.success) {
+          // Broadcast game end to all users in the room
+          io.to(roomId).emit('detectiveGameEnded', {
+            summary: result.summary,
+            endedBy: socket.user.name,
+            game: result.game,
+            timestamp: new Date()
+          });
+        }
+
+        socket.emit('endDetectiveGameResult', result);
+
+        logDebug('Detective game ended', {
+          roomId,
+          userId: socket.user.id,
+          duration: result.summary?.duration
+        });
+
+      } catch (error) {
+        console.error('End detective game error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to end detective game'
+        });
+      }
+    });
+
+    socket.on('getDetectiveGameState', async ({ roomId }) => {
+      try {
+        if (!socket.user) {
+          socket.emit('detectiveGameError', {
+            error: 'User not authenticated'
+          });
+          return;
+        }
+
+        const gameState = detectiveGameService.getGameState(roomId);
+        
+        socket.emit('detectiveGameState', {
+          game: gameState,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error('Get detective game state error:', error);
+        socket.emit('detectiveGameError', {
+          error: 'Failed to get game state'
         });
       }
     });

@@ -38,7 +38,8 @@ const ChatInput = forwardRef(({
   room = null, // room prop 추가
   fightblockMode = false, // 싸움방지 모드 prop 추가
   socketRef = null, // socket reference for voice features
-  onWhiteboardToggle = () => {} // whiteboard toggle handler
+  onWhiteboardToggle = () => {}, // whiteboard toggle handler
+  onDetectiveGameToggle = () => {} // detective game toggle handler
 }, ref) => {
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
@@ -816,6 +817,25 @@ const ChatInput = forwardRef(({
                   <path d="M12 17v4" />
                   <path d="M8 7h8" />
                   <path d="M8 11h4" />
+                </svg>
+              </IconButton>
+              <IconButton
+                variant="ghost"
+                size="md"
+                onClick={onDetectiveGameToggle}
+                disabled={isDisabled}
+                aria-label="탐정 게임"
+                title="챗봇 탐정 페르소나 게임"
+                style={{ transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M12 1v6M12 17v6"/>
+                  <path d="m4.2 4.2 4.2 4.2M15.6 15.6l4.2 4.2"/>
+                  <path d="M1 12h6M17 12h6"/>
+                  <path d="m4.2 19.8 4.2-4.2M15.6 8.4l4.2-4.2"/>
                 </svg>
               </IconButton>
               <input
