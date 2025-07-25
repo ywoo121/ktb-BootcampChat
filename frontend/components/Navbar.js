@@ -22,22 +22,20 @@ const Navbar = ({ toggleMode, mode }) => {
       checkAuth();
     };
 
-    const handleProfileUpdate = () => {
-      checkAuth();
-    };
-
     window.addEventListener("authStateChange", handleAuthChange);
-    window.addEventListener("userProfileUpdate", handleProfileUpdate);
 
     return () => {
       window.removeEventListener("authStateChange", handleAuthChange);
-      window.removeEventListener("userProfileUpdate", handleProfileUpdate);
     };
   }, []);
 
-  // mode가 변경될 때마다 콘솔에 출력
   useEffect(() => {
-    console.log('Current theme mode:', mode);
+    // console.log(
+    //   "[Navbar] Received new mode from App:",
+    //   mode,
+    //   "at",
+    //   new Date().toISOString()
+    // );
   }, [mode]);
 
   const handleNavigation = (path) => {
@@ -69,36 +67,21 @@ const Navbar = ({ toggleMode, mode }) => {
         <Flex justify="space-between" align="center">
           {/* Logo */}
           <Box>
-            <div
-              onClick={() =>
-                handleNavigation(currentUser ? "/chat-rooms" : "/")
-              }
+            <Image
+              src="/images/logo-h.png"
+              alt="Chat App Logo"
+              width={180}
+              height={40}
+              priority
               style={{ cursor: "pointer" }}
-              role="button"
-              tabIndex={0}
-              onKeyPress={(e) => {
-                if (e.key === "Enter") {
-                  handleNavigation(currentUser ? "/chat-rooms" : "/");
-                }
-              }}
-            >
-              <Image
-                src={mode === 'light' ? '/images/logo_dark.png' : '/images/logo.png' }
-                alt="Chat App Logo"
-                width={240}
-                height={81}
-                style={{ objectFit: "contain" }}
-                draggable="false"
-                onDragStart={(e) => e.preventDefault()}
-                priority
-              />
-            </div>
+              onClick={() => handleNavigation("/")}
+            />
           </Box>
 
-          {/* Navigation Menu */}
+          {/* Navigation Links */}
           <Box>
-            {currentUser && (
-              <HStack gap="150">
+            {currentUser && !isInChatRooms && (
+              <HStack gap="200">
                 <Button
                   color="primary"
                   size="md"
@@ -112,6 +95,13 @@ const Navbar = ({ toggleMode, mode }) => {
                   onClick={() => handleNavigation("/chat-rooms/new")}
                 >
                   새 채팅방
+                </Button>
+                <Button
+                  color="primary"
+                  size="md"
+                  onClick={() => handleNavigation("/whiteboards")}
+                >
+                  화이트보드
                 </Button>
               </HStack>
             )}
@@ -127,18 +117,7 @@ const Navbar = ({ toggleMode, mode }) => {
                     size="md"
                     style={{ flexShrink: 0 }}
                     user={currentUser}
-                  >
-                    <Avatar.Image
-                      src={
-                        currentUser.profileImage
-                          ? `${process.env.NEXT_PUBLIC_API_URL}${currentUser.profileImage}`
-                          : undefined
-                      }
-                    />
-                    <Avatar.Fallback>
-                      {currentUser.name?.[0]?.toUpperCase() || "U"}
-                    </Avatar.Fallback>
-                  </PersistentAvatar>
+                  />
 
                   {/* Member Name */}
                   <Text typography="body2" style={{ fontWeight: 500 }}>
@@ -165,8 +144,8 @@ const Navbar = ({ toggleMode, mode }) => {
                   </Button>
                 </>
               )}
-
-              {/* 모드 토글 버튼 */}
+              
+              {/* Theme Toggle Button */}
               <Button
                 size="md"
                 color="secondary"

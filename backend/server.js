@@ -13,7 +13,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 8080;
 
 // trust proxy 설정 추가
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 // CORS 설정
 const corsOptions = {
@@ -35,7 +35,7 @@ const corsOptions = {
     'http://api.chat.goorm-ktb-006.goorm.team'
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: [
     'Content-Type',
     'Authorization',
@@ -44,7 +44,7 @@ const corsOptions = {
     'Cache-Control',
     'Pragma'
   ],
-  exposedHeaders: ['x-auth-token', 'x-session-id']
+  exposedHeaders: ["x-auth-token", "x-session-id"],
 };
 
 // 기본 미들웨어
@@ -53,16 +53,17 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // OPTIONS 요청에 대한 처리
-app.options('*', cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // 정적 파일 제공
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // 요청 로깅
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === "development") {
   app.use((req, res, next) => {
     console.log(
-        `[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+      `[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`
+    );
     next();
   });
 }
@@ -72,7 +73,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    env: process.env.NODE_ENV
+    env: process.env.NODE_ENV,
   });
 });
 
@@ -84,23 +85,24 @@ console.log('API routes mounted successfully');
 // Socket.IO 설정
 const io = socketIo(server, { cors: corsOptions });
 require('./sockets/chat')(io);
+require("./sockets/whiteboard")(io); // 화이트보드 소켓 추가
 
 // Socket.IO 객체 전달
 initializeSocket(io);
 
 // 404 에러 핸들러
 app.use((req, res) => {
-  console.log('404 Error:', req.originalUrl);
+  console.log("404 Error:", req.originalUrl);
   res.status(404).json({
     success: false,
-    message: '요청하신 리소스를 찾을 수 없습니다.',
-    path: req.originalUrl
+    message: "요청하신 리소스를 찾을 수 없습니다.",
+    path: req.originalUrl,
   });
 });
 
 // 글로벌 에러 핸들러
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
+  console.error("Server error:", err);
   res.status(err.status || 500).json({
     success: false,
     message: err.message || '서버 에러가 발생했습니다.',
