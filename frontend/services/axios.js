@@ -239,7 +239,6 @@ axiosInstance.interceptors.response.use(
       try {
         const refreshed = await authService.refreshToken();
         if (refreshed) {
-          // 토큰 갱신 성공 시 원래 요청 재시도
           const user = authService.getCurrentUser();
           if (user?.token) {
             config.headers['x-auth-token'] = user.token;

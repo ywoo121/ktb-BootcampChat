@@ -77,7 +77,14 @@ const MentionDropdown = ({
 
   const getAvatarContent = useCallback((user) => {
     if (user.isAI) {
-      return user.name === 'wayneAI' ? 'W' : 'C';
+      if (user.name === 'wayneAI') return 'W';
+      if (user.name === 'consultingAI') return 'C';
+      if (user.name === 'taxAI') return 'T'; 
+      if (user.name === 'algorithmAI') return 'A';
+      if (user.name === 'ragAI') return 'R';
+      if (user.name === 'docAI') return 'D';
+      if (user.name === 'helpAI') return 'H';
+      return 'M';
     }
     return user.name.charAt(0).toUpperCase();
   }, []);
@@ -100,7 +107,7 @@ const MentionDropdown = ({
     >
       {participants.map((user, index) => (
         <div
-          key={user._id || `ai-${user.name}`}
+          key={user.id || `ai-${user.name}`}
           ref={el => itemRefs.current[index] = el}
           role="option"
           aria-selected={index === activeIndex}
@@ -126,8 +133,26 @@ const MentionDropdown = ({
             
             <div className="mention-info">
               <span className="mention-name">
-                {user.isAI ? (user.name === 'wayneAI' ? 'Wayne AI' : 'Consulting AI') : user.name}
-              </span>
+    {user.isAI ? (
+      user.name === 'wayneAI'
+        ? 'Wayne AI'
+        : user.name === 'consultingAI'
+        ? 'Consulting AI'
+        : user.name === 'taxAI'
+        ? 'Tax AI'
+        : user.name === 'algorithmAI'
+        ? 'Algorithm AI'
+        : user.name === 'ragAI'
+        ? 'RAG AI'
+        : user.name === 'docAI'
+        ? 'Documentation AI'
+        : user.name === 'helpAI'
+        ? 'Help AI'
+        : user.name
+    ) : (
+      user.name
+    )}
+  </span>
               {renderUserBadge(user)}
             </div>
           </div>

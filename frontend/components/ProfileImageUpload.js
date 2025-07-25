@@ -29,72 +29,83 @@ const ProfileImageUpload = ({ currentImage, onImageChange }) => {
     if (!file) return;
 
     try {
-      // 이미지 파일 검증
-      if (!file.type.startsWith('image/')) {
-        throw new Error('이미지 파일만 업로드할 수 있습니다.');
-      }
-
-      // 파일 크기 제한 (5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error('파일 크기는 5MB를 초과할 수 없습니다.');
-      }
+      // 1. 유효성 검사
+      if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 업로드할 수 있습니다.');
+      if (file.size > 5 * 1024 * 1024) throw new Error('파일 크기는 5MB를 초과할 수 없습니다.');
 
       setUploading(true);
       setError('');
 
-      // 파일 미리보기 생성
+      // 2. 미리보기
       const objectUrl = URL.createObjectURL(file);
       setPreviewUrl(objectUrl);
 
-      // 현재 사용자의 인증 정보 가져오기
+      // 3. 사용자 인증 정보 가져오기
       const user = authService.getCurrentUser();
-      if (!user?.token) {
-        throw new Error('인증 정보가 없습니다.');
-      }
+      if (!user?.token) throw new Error('인증 정보가 없습니다.');
 
-      // FormData 생성
-      const formData = new FormData();
-      formData.append('profileImage', file);
-
-      // 파일 업로드 요청
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/profile-image`, {
+      // 4. Presigned URL 요청
+      const presignRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/files/presigned-upload`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'x-auth-token': user.token,
           'x-session-id': user.sessionId
         },
-        body: formData
+        body: JSON.stringify({
+          originalname: file.name,
+          mimetype: file.type,
+          size: file.size
+        })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || '이미지 업로드에 실패했습니다.');
+      if (!presignRes.ok) {
+        const errData = await presignRes.json();
+        throw new Error(errData.message, 'Presigned URL 요청 실패');
       }
 
-      const data = await response.json();
-      
-      // 로컬 스토리지의 사용자 정보 업데이트
+      const { uploadUrl, fileKey, fileUrl } = await presignRes.json();
+
+      // 5. S3에 직접 PUT 업로드
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type
+        },
+        body: file
+      });
+
+      // 6. 프로필 이미지 등록 요청 (서버에 반영)
+      const updateRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/profile-image`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': user.token,
+          'x-session-id': user.sessionId
+        },
+        body: JSON.stringify({ profileImage: fileKey })
+      });
+
+      if (!updateRes.ok) {
+        const errData = await updateRes.json();
+        throw new Error(errData.message, '프로필 이미지 업데이트 실패');
+      }
+
+      const updatedUserData = await updateRes.json();
+
+      // 7. 로컬 스토리지와 상태 업데이트
       const updatedUser = {
         ...user,
-        profileImage: data.imageUrl
+        profileImage: fileKey
       };
       localStorage.setItem('user', JSON.stringify(updatedUser));
-
-      // 부모 컴포넌트에 변경 알림
-      onImageChange(data.imageUrl);
-
-      // 전역 이벤트 발생
+      onImageChange(fileKey);  // 부모에 알림
       window.dispatchEvent(new Event('userProfileUpdate'));
 
-    } catch (error) {
-      console.error('Image upload error:', error);
-      setError(error.message);
+    } catch (err) {
+      console.error('이미지 업로드 오류:', err);
+      setError(err.message);
       setPreviewUrl(getProfileImageUrl(currentImage));
-      
-      // 기존 objectUrl 정리
-      if (previewUrl && previewUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(previewUrl);
-      }
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

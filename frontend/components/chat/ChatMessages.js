@@ -259,6 +259,7 @@ EmptyMessages.displayName = 'EmptyMessages';
 const ChatMessages = ({ 
   messages = [], 
   streamingMessages = {}, 
+  streamingAegyoMessages = {},
   currentUser = null,
   room = null,
   loadingMessages = false,
@@ -270,7 +271,8 @@ const ChatMessages = ({
   messagesEndRef,
   socketRef,
   scrollToBottomOnNewMessage = true,
-  onScrollPositionChange = () => {}
+  onScrollPositionChange = () => {},
+  fightblockMode = false // 추가
 }) => {
   const containerRef = useRef(null);
   const lastMessageRef = useRef(null);
@@ -279,6 +281,16 @@ const ChatMessages = ({
   const initialLoadRef = useRef(true);
   const loadingTimeoutRef = useRef(null);
   const scrollHandler = useRef(new ScrollHandler(containerRef));
+
+  const anonymousNameMap = useMemo(() => {
+    if (!room?.isAnonymous || !Array.isArray(room.participants)) return {};
+
+    return room.participants.reduce((acc, user, idx) => {
+      acc[user.id || user.id] = `익명${idx + 1}`;
+      return acc;
+    }, {});
+  }, [room]);
+
 
   const logDebug = useCallback((action, data) => {
     console.debug(`[ChatMessages] ${action}:`, {
@@ -292,14 +304,16 @@ const ChatMessages = ({
     });
   }, [loadingMessages, hasMoreMessages, messages.length]);
 
-  const isMine = useCallback((msg) => {
-    if (!msg?.sender || !currentUser?.id) return false;
-    return (
-      msg.sender._id === currentUser.id || 
-      msg.sender.id === currentUser.id ||
-      msg.sender === currentUser.id
-    );
-  }, [currentUser?.id]);
+  // 내 메시지 판별: id, _id, email, name 중 하나라도 일치하면 내 메시지로 간주
+  function isMyMessage(msg, currentUser) {
+    if (!msg.sender || !currentUser) return false;
+    const senderId = String(msg.sender.id || msg.sender.id || '');
+    const userId = String(currentUser.id || currentUser.id || '');
+    if (senderId && userId && senderId === userId) return true;
+    if (msg.sender.email && currentUser.email && msg.sender.email === currentUser.email) return true;
+    if (msg.sender.name && currentUser.name && msg.sender.name === currentUser.name) return true;
+    return false;
+  }
 
   const handleScroll = useCallback((event) => {
     scrollHandler.current.handleScroll(event, {
@@ -318,7 +332,7 @@ const ChatMessages = ({
       const lastMessage = newMessages[newMessages.length - 1];
       
       const shouldScroll = scrollToBottomOnNewMessage && 
-        scrollHandler.current.shouldScrollToBottom(lastMessage, isMine(lastMessage));
+        scrollHandler.current.shouldScrollToBottom(lastMessage, isMyMessage(lastMessage, currentUser));
 
       if (shouldScroll) {
         scrollHandler.current.scrollToBottom('smooth');
@@ -326,7 +340,7 @@ const ChatMessages = ({
 
       lastMessageCountRef.current = messages.length;
     }
-  }, [messages, scrollToBottomOnNewMessage, isMine]);
+  }, [messages, scrollToBottomOnNewMessage, currentUser, isMyMessage]);
 
   // 과거 메시지 로드 후 스크롤 위치 복원
   useLayoutEffect(() => {
@@ -347,11 +361,11 @@ const ChatMessages = ({
     if (streamingMessagesArray.length > 0) {
       const lastMessage = streamingMessagesArray[streamingMessagesArray.length - 1];
       
-      if (lastMessage && scrollHandler.current.shouldScrollToBottom(lastMessage, isMine(lastMessage))) {
+      if (lastMessage && scrollHandler.current.shouldScrollToBottom(lastMessage, isMyMessage(lastMessage, currentUser))) {
         scrollHandler.current.scrollToBottom('smooth');
       }
     }
-  }, [streamingMessages, isMine]);
+  }, [streamingMessages, currentUser, isMyMessage]);
 
   // 초기 스크롤 설정
   useLayoutEffect(() => {
@@ -387,13 +401,18 @@ const ChatMessages = ({
     if (!Array.isArray(messages)) return [];
     
     const streamingArray = Object.values(streamingMessages || {});
-    const combinedMessages = [...messages, ...streamingArray];
+    // 애교 메시지 스트림은 sender를 currentUser로 할당
+    const aegyoArray = Object.values(streamingAegyoMessages || {}).map(msg => ({
+      ...msg,
+      sender: currentUser
+    }));
+    const combinedMessages = [...messages, ...streamingArray, ...aegyoArray];
 
     return combinedMessages.sort((a, b) => {
       if (!a?.timestamp || !b?.timestamp) return 0;
       return new Date(a.timestamp) - new Date(b.timestamp);
     });
-  }, [messages, streamingMessages]);
+  }, [messages, streamingMessages, streamingAegyoMessages, currentUser]);
 
   const renderMessage = useCallback((msg, idx) => {
     if (!msg || !SystemMessage || !FileMessage || !UserMessage || !AIMessage) {
@@ -408,6 +427,11 @@ const ChatMessages = ({
     }
 
     const isLast = idx === allMessages.length - 1;
+
+    const senderId = msg?.sender?.id || msg?.sender?.id || msg?.sender;
+
+    const displayName = room?.isAnonymous ? anonymousNameMap[senderId] : msg?.sender?.name;
+
     const commonProps = {
       currentUser,
       room,
@@ -416,25 +440,26 @@ const ChatMessages = ({
     };
 
     const MessageComponent = {
-      system: SystemMessage,
+      system: (props) => <SystemMessage {...props} fightblockMode={fightblockMode} />, // fightblockMode 전달
       file: FileMessage,
       ai: AIMessage
     }[msg.type] || UserMessage;
 
     return (
       <MessageComponent
-        key={msg._id || `msg-${idx}`}
+        key={msg.id || `msg-${idx}`}
         ref={isLast ? lastMessageRef : null}
         {...commonProps}
-        msg={msg}
+        msg={{...msg, displayName}}
         content={msg.content}
-        isMine={msg.type !== 'system' ? isMine(msg) : undefined}
-        isStreaming={msg.type === 'ai' ? (msg.isStreaming || false) : undefined}
+        isMine={msg.type !== 'system' ? isMyMessage(msg, currentUser) : undefined}
+        isStreaming={msg.isStreaming || false}
+        isAegyo={msg.isAegyo || false}
         messageRef={msg}
         socketRef={socketRef}
       />
     );
-  }, [allMessages.length, currentUser, room, isMine, onReactionAdd, onReactionRemove, socketRef]);
+  }, [allMessages.length, currentUser, room, isMyMessage, onReactionAdd, onReactionRemove, socketRef, anonymousNameMap, fightblockMode]);
 
   return (
     <div 

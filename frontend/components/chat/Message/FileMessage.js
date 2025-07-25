@@ -3,13 +3,12 @@ import {
   PdfIcon as FileText, 
   ImageIcon as Image, 
   MovieIcon as Film, 
-  CorrectOutlineIcon as CheckCheck, 
-  CorrectOutlineIcon as Check, 
   MusicIcon as Music, 
-  ExternalLinkIcon as ExternalLink, 
+  LinkOutlineIcon as ExternalLink,
   DownloadIcon as Download,
   ErrorCircleIcon as AlertCircle 
 } from '@vapor-ui/icons';
+
 import { Button, Text, Callout } from '@vapor-ui/core';
 import PersistentAvatar from '../../common/PersistentAvatar';
 import MessageContent from './MessageContent';
@@ -30,16 +29,29 @@ const FileMessage = ({
 }) => {
   const [error, setError] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   useEffect(() => {
-    if (msg?.file) {
-      const url = fileService.getPreviewUrl(msg.file, true);
-      setPreviewUrl(url);
-      console.debug('Preview URL generated:', {
-        filename: msg.file.filename,
-        url
-      });
-    }
+    const loadPreviewUrl = async () => {
+      if (msg?.file) {
+        setIsLoadingPreview(true);
+        try {
+          const url = await fileService.getPreviewUrl(msg.file);
+          setPreviewUrl(url);
+          console.debug('Preview URL loaded:', {
+            filename: msg.file.filename,
+            url
+          });
+        } catch (error) {
+          console.error('Failed to load preview URL:', error);
+          setError('미리보기 URL을 가져올 수 없습니다.');
+        } finally {
+          setIsLoadingPreview(false);
+        }
+      }
+    };
+
+    loadPreviewUrl();
   }, [msg?.file]);
 
   if (!msg?.file) {
@@ -61,10 +73,16 @@ const FileMessage = ({
     const mimetype = msg.file?.mimetype || '';
     const iconProps = { className: "w-5 h-5 flex-shrink-0" };
 
-    if (mimetype.startsWith('image/')) return <Image {...iconProps} color="#00C853" />;
-    if (mimetype.startsWith('video/')) return <Film {...iconProps} color="#2196F3" />;
-    if (mimetype.startsWith('audio/')) return <Music {...iconProps} color="#9C27B0" />;
-    return <FileText {...iconProps} color="#ffffff" />;
+    if (mimetype.startsWith('image/')) {
+      return Image ? <Image {...iconProps} color="#00C853" /> : <span>📷</span>;
+    }
+    if (mimetype.startsWith('video/')) {
+      return Film ? <Film {...iconProps} color="#2196F3" /> : <span>🎥</span>;
+    }
+    if (mimetype.startsWith('audio/')) {
+      return Music ? <Music {...iconProps} color="#9C27B0" /> : <span>🎵</span>;
+    }
+    return FileText ? <FileText {...iconProps} color="#ffffff" /> : <span>📄</span>;
   };
 
   const getDecodedFilename = (encodedFilename) => {
@@ -108,20 +126,14 @@ const FileMessage = ({
         throw new Error('파일 정보가 없습니다.');
       }
 
-      const user = authService.getCurrentUser();
-      if (!user?.token || !user?.sessionId) {
-        throw new Error('인증 정보가 없습니다.');
+      console.log('Starting download for:', msg.file.filename);
+      const result = await fileService.downloadFile(msg.file.filename, msg.file.originalname);
+      
+      if (!result.success) {
+        throw new Error(result.message || '다운로드에 실패했습니다.');
       }
 
-      const baseUrl = fileService.getFileUrl(msg.file.filename, false);
-      const authenticatedUrl = `${baseUrl}?token=${encodeURIComponent(user.token)}&sessionId=${encodeURIComponent(user.sessionId)}&download=true`;
-
-      const link = document.createElement('a');
-      link.href = authenticatedUrl;
-      link.download = getDecodedFilename(msg.file.originalname);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      console.log('Download completed successfully');
 
     } catch (error) {
       console.error('File download error:', error);
@@ -129,7 +141,7 @@ const FileMessage = ({
     }
   };
 
-  const handleViewInNewTab = (e) => {
+  const handleViewInNewTab = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setError(null);
@@ -139,19 +151,16 @@ const FileMessage = ({
         throw new Error('파일 정보가 없습니다.');
       }
 
-      const user = authService.getCurrentUser();
-      if (!user?.token || !user?.sessionId) {
-        throw new Error('인증 정보가 없습니다.');
+      if (!previewUrl) {
+        throw new Error('미리보기 URL이 없습니다.');
       }
 
-      const baseUrl = fileService.getFileUrl(msg.file.filename, true);
-      const authenticatedUrl = `${baseUrl}?token=${encodeURIComponent(user.token)}&sessionId=${encodeURIComponent(user.sessionId)}`;
-
-      const newWindow = window.open(authenticatedUrl, '_blank');
+      const newWindow = window.open(previewUrl, '_blank');
       if (!newWindow) {
         throw new Error('팝업이 차단되었습니다. 팝업 차단을 해제해주세요.');
       }
       newWindow.opener = null;
+
     } catch (error) {
       console.error('File view error:', error);
       setError(error.message || '파일 보기 중 오류가 발생했습니다.');
@@ -159,82 +168,81 @@ const FileMessage = ({
   };
 
   const renderImagePreview = (originalname) => {
-    try {
-      if (!msg?.file?.filename) {
-        return (
-          <div className="flex items-center justify-center h-full bg-gray-100">
-            <Image className="w-8 h-8 text-gray-400" />
-          </div>
-        );
-      }
-
-      const user = authService.getCurrentUser();
-      if (!user?.token || !user?.sessionId) {
-        throw new Error('인증 정보가 없습니다.');
-      }
-
-      const previewUrl = fileService.getPreviewUrl(msg.file, true);
-
-      return (
-        <div className="bg-transparent-pattern">
-          <img 
-            src={previewUrl}
-            alt={originalname}
-            className="object-cover rounded-sm"
-            onLoad={() => {
-              console.debug('Image loaded successfully:', originalname);
-            }}
-            onError={(e) => {
-              console.error('Image load error:', {
-                error: e.error,
-                originalname
-              });
-              e.target.onerror = null; 
-              e.target.src = '/images/placeholder-image.png';
-              setError('이미지를 불러올 수 없습니다.');
-            }}
-            loading="lazy"
-          />
-        </div>
-      );
-    } catch (error) {
-      console.error('Image preview error:', error);
-      setError(error.message || '이미지 미리보기를 불러올 수 없습니다.');
+    if (!msg?.file?.filename) {
       return (
         <div className="flex items-center justify-center h-full bg-gray-100">
-          <Image className="w-8 h-8 text-gray-400" />
+          {Image ? <Image className="w-8 h-8 text-gray-400" /> : <span className="text-2xl">📷</span>}
         </div>
       );
     }
+
+    if (isLoadingPreview) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-100">
+          <span>로딩중...</span>
+        </div>
+      );
+    }
+
+    if (!previewUrl) {
+      return (
+        <div className="flex items-center justify-center h-full bg-gray-100">
+          {Image ? <Image className="w-8 h-8 text-gray-400" /> : <span className="text-2xl">📷</span>}
+          <span className="ml-2">미리보기 불가</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-transparent-pattern">
+        <img 
+          src={previewUrl}
+          alt={originalname}
+          className="object-cover rounded-sm max-w-full h-auto"
+          onLoad={() => {
+            console.debug('Image loaded successfully:', originalname);
+          }}
+          onError={(e) => {
+            console.error('Image load error:', {
+              src: e.target.src,
+              originalname
+            });
+            e.target.onerror = null; 
+            e.target.src = '/images/placeholder-image.png';
+            setError('이미지를 불러올 수 없습니다.');
+          }}
+          loading="lazy"
+        />
+      </div>
+    );
   };
 
+  const renderFileActions = () => (
+    <div className="file-actions mt-2 pt-2 border-t border-gray-200">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleViewInNewTab}
+        title="새 탭에서 보기"
+      >
+        {ExternalLink ? <ExternalLink size={16} /> : <span>🔗</span>}
+        <span>새 탭에서 보기</span>
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleFileDownload}
+        title="다운로드"
+      >
+        {Download ? <Download size={16} /> : <span>⬇️</span>}
+        <span>다운로드</span>
+      </Button>
+    </div>
+  );
   const renderFilePreview = () => {
     const mimetype = msg.file?.mimetype || '';
     const originalname = getDecodedFilename(msg.file?.originalname || 'Unknown File');
     const size = fileService.formatFileSize(msg.file?.size || 0);
-    
-    const FileActions = () => (
-      <div className="file-actions mt-2 pt-2 border-t border-gray-200">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleViewInNewTab}
-          title="새 탭에서 보기"
-        >
-          <ExternalLink size={16} />
-          <span>새 탭에서 보기</span>
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleFileDownload}
-          title="다운로드"
-        >
-          <Download size={16} />
-          <span>다운로드</span>
-        </Button>
-      </div>
-    );
 
     const previewWrapperClass = 
       "overflow-hidden";
@@ -251,7 +259,7 @@ const FileMessage = ({
               <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
-          <FileActions />
+          {renderFileActions()}
         </div>
       );
     }
@@ -274,7 +282,7 @@ const FileMessage = ({
               </video>
             ) : (
               <div className="flex items-center justify-center h-full">
-                <Film className="w-8 h-8 text-gray-400" />
+                {Film ? <Film className="w-8 h-8 text-gray-400" /> : <span className="text-2xl">🎥</span>}
               </div>
             )}
           </div>
@@ -284,7 +292,7 @@ const FileMessage = ({
               <span className="text-sm text-muted">{size}</span>
             </div>
           </div>
-          <FileActions />
+          {renderFileActions()}
         </div>
       );
     }
@@ -312,7 +320,7 @@ const FileMessage = ({
               </audio>
             )}
           </div>
-          <FileActions />
+          {renderFileActions()}
         </div>
       );
     }
@@ -325,7 +333,7 @@ const FileMessage = ({
             <Text typography="body2" as="span">{size}</Text>
           </div>
         </div>
-        <FileActions />
+        {renderFileActions()}
       </div>
     );
   };
@@ -343,7 +351,7 @@ const FileMessage = ({
           <div className="message-content">
             {error && (
               <Callout color="danger" className="mb-3 d-flex align-items-center">
-                <AlertCircle className="w-4 h-4 me-2" />
+                {AlertCircle ? <AlertCircle className="w-4 h-4 me-2" /> : <span>⚠️</span>}
                 <span>{error}</span>
                 <Button
                   variant="ghost"
@@ -374,7 +382,7 @@ const FileMessage = ({
               messageType={msg.type}
               participants={room.participants}
               readers={msg.readers}
-              messageId={msg._id}
+              messageId={msg.id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
               socketRef={socketRef}
@@ -382,7 +390,7 @@ const FileMessage = ({
           </div>
         </div>
         <MessageActions 
-          messageId={msg._id}
+          messageId={msg.id}
           messageContent={msg.content}
           reactions={msg.reactions}
           currentUserId={currentUser?.id}
@@ -390,6 +398,8 @@ const FileMessage = ({
           onReactionRemove={onReactionRemove}
           isMine={isMine}
           room={room}
+          message={msg}
+          socketRef={socketRef}
         />        
       </div>
     </div>

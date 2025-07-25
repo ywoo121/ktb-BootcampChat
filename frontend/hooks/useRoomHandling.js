@@ -364,7 +364,7 @@ export const useRoomHandling = (
         // Ensure current user is included in participants for display
         if (currentUser && roomData.participants) {
           const isUserInParticipants = roomData.participants.some(p => 
-            p._id === currentUser.id || p.id === currentUser.id
+            p.id === currentUser.id || p.id === currentUser.id
           );
           
           if (!isUserInParticipants) {

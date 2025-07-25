@@ -105,33 +105,44 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    // 이름 2자 미만일 경우 예외 처리
+    if (formData.name.trim().length < 2) {
+      setErrors([{ message: '이름은 2자 이상이어야 합니다.' }]);
       return;
     }
 
+    if (!validateForm()) {
+      return;
+    }
+  
     setLoading(true);
     setErrors([]);
-
+  
     try {
       const { name, email, password } = formData;
-      // 회원가입
-      await authService.register({ name, email, password });
-      
-      // 바로 로그인 처리
+  
+      // 회원가입 요청
+      const registerResult = await authService.register({ name, email, password });
+  
+      // ❗ 이미 등록된 이메일이면 register에서 null 반환 → 성공 처리 중단
+      if (!registerResult) {
+        return;
+      }
+  
+      // 자동 로그인
       await authService.login({ email, password });
-      
-      // 회원가입 성공 처리
+  
+      // 성공 처리
       setShowSuccessModal(true);
       fireConfetti();
-      
-      // 10초 후 채팅방 목록 페이지로 이동
+  
       setTimeout(() => {
         router.push('/chat-rooms');
       }, 10000);
-
+  
     } catch (err) {
       console.error('Registration error:', err);
-      
+  
       if (err.response?.data?.errors) {
         setErrors(err.response.data.errors);
       } else if (err.response?.data?.message) {
@@ -253,6 +264,7 @@ const Register = () => {
                 <Stack gap="100" align="center">
                   <Text typography="body3">이미 계정이 있으신가요?</Text>
                   <Button
+                    type='button'
                     size="md"
                     onClick={() => router.push('/')}
                     disabled={loading}

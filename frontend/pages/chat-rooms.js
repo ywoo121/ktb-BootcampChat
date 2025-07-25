@@ -327,8 +327,8 @@ function ChatRoomsComponent() {
 
       setRooms(prev => {
         if (isLoadingMore) {
-          const existingIds = new Set(prev.map(room => room._id));
-          const newRooms = data.filter(room => !existingIds.has(room._id));
+          const existingIds = new Set(prev.map(room => room.id));
+          const newRooms = data.filter(room => !existingIds.has(room.id));
           return [...prev, ...newRooms];
         }
         return data;
@@ -396,8 +396,8 @@ function ChatRoomsComponent() {
         });
         
         setRooms(prev => {
-          const existingIds = new Set(prev.map(room => room._id));
-          const uniqueNewRooms = newRooms.filter(room => !existingIds.has(room._id));
+          const existingIds = new Set(prev.map(room => room.id));
+          const uniqueNewRooms = newRooms.filter(room => !existingIds.has(room.id));
           console.log('Unique new rooms:', uniqueNewRooms.length);
           return [...prev, ...uniqueNewRooms];
         });
@@ -520,7 +520,7 @@ function ChatRoomsComponent() {
           },
           roomDeleted: (roomId) => {
             setRooms(prev => {
-              const updatedRooms = prev.filter(room => room._id !== roomId);
+              const updatedRooms = prev.filter(room => room.id !== roomId);
               previousRoomsRef.current = updatedRooms;
               return updatedRooms;
             });
@@ -528,7 +528,7 @@ function ChatRoomsComponent() {
           roomUpdated: (updatedRoom) => {
             setRooms(prev => {
               const updatedRooms = prev.map(room => 
-                room._id === updatedRoom._id ? updatedRoom : room
+                room.id === updatedRoom.id ? updatedRoom : room
               );
               previousRoomsRef.current = updatedRooms;
               return updatedRooms;
@@ -599,17 +599,21 @@ function ChatRoomsComponent() {
       console.error('Room join error:', error);
       
       let errorMessage = '입장에 실패했습니다.';
+      alert('비밀번호가 일치하지 않습니다')
+      
       if (error.response?.status === 404) {
         errorMessage = '채팅방을 찾을 수 없습니다.';
       } else if (error.response?.status === 403) {
-        errorMessage = '채팅방 입장 권한이 없습니다.';
+        errorMessage = '비밀번호가 틀렸거나 입장 권한이 없습니다.';
+      } else if (error.response?.status === 401) {
+        errorMessage = '비밀번호가 틀렸거나 입장 권한이 없습니다.';
       }
       
-      setError({
-        title: '채팅방 입장 실패',
-        message: error.response?.data?.message || errorMessage,
-        type: 'danger'
-      });
+      // setError({
+      //   title: '채팅방 입장 실패',
+      //   message: error.response?.data?.message || errorMessage,
+      //   type: 'danger'
+      // });
     } finally {
       setJoiningRoom(false);
     }
@@ -628,15 +632,16 @@ function ChatRoomsComponent() {
       <StyledTable>
         <StyledTableHead>
           <StyledTableRow>
-            <StyledTableHeader width="45%">채팅방</StyledTableHeader>
+            <StyledTableHeader width="30%">채팅방</StyledTableHeader>
+            <StyledTableHeader width="15%">상태</StyledTableHeader>
             <StyledTableHeader width="15%">참여자</StyledTableHeader>
             <StyledTableHeader width="25%">생성일</StyledTableHeader>
-            <StyledTableHeader width="15%">액션</StyledTableHeader>
+            <StyledTableHeader width="10%">액션</StyledTableHeader>
           </StyledTableRow>
         </StyledTableHead>
         <StyledTableBody>
           {rooms.map((room) => (
-            <StyledTableRow key={room._id}>
+            <StyledTableRow key={room.id}>
               <StyledTableCell>
                 <Text typography="body1" style={{ fontWeight: 500, marginBottom: 'var(--vapor-space-050)' }}>{room.name}</Text>
                 {room.hasPassword && (
@@ -646,6 +651,17 @@ function ChatRoomsComponent() {
                   </HStack>
                 )}
               </StyledTableCell>
+              <StyledTableCell>
+              {room.isAnonymous && (
+                <Badge                   
+                  color="primary"
+                  variant="outline"
+                  size="md"
+                  disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}>
+                  <Text typography="body1" style={{ color: 'inherit' }}>익명</Text>
+                </Badge>
+              )}
+            </StyledTableCell>
               <StyledTableCell>
                 <Badge color="primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--vapor-space-100)' }}>
                   <GroupIcon size={16} />
@@ -668,7 +684,7 @@ function ChatRoomsComponent() {
                   color="primary"
                   variant="outline"
                   size="md"
-                  onClick={() => handleJoinRoom(room._id, room.hasPassword)}
+                  onClick={() => handleJoinRoom(room.id, room.hasPassword)}
                   disabled={connectionStatus !== CONNECTION_STATUS.CONNECTED}
                 >
                   입장
