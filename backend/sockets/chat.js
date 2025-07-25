@@ -1321,6 +1321,68 @@ module.exports = function (io) {
       }
     });
 
+    // Whiteboard real-time collaboration events
+    socket.on('whiteboardUpdate', async ({ roomId, data, action }) => {
+      try {
+        if (!socket.user) {
+          throw new Error('Unauthorized');
+        }
+
+        if (!roomId || !data) {
+          throw new Error('Room ID and data are required');
+        }
+
+        // 권한 확인
+        const room = await Room.findOne({
+          _id: roomId,
+          participants: socket.user.id
+        });
+
+        if (!room) {
+          throw new Error('화이트보드에 접근할 권한이 없습니다.');
+        }
+
+        // 같은 방의 다른 사용자들에게 실시간 업데이트 전송
+        socket.to(roomId).emit('whiteboardUpdate', {
+          data,
+          action,
+          userId: socket.user.id,
+          userName: socket.user.name,
+          timestamp: new Date()
+        });
+
+        logDebug('whiteboard update broadcasted', {
+          roomId,
+          action,
+          userId: socket.user.id,
+          dataSize: JSON.stringify(data).length
+        });
+
+      } catch (error) {
+        console.error('Whiteboard update error:', error);
+        socket.emit('whiteboardError', {
+          error: error.message || 'Whiteboard update failed'
+        });
+      }
+    });
+
+    socket.on('whiteboardCursor', ({ roomId, cursor }) => {
+      try {
+        if (!socket.user || !roomId) return;
+
+        // 커서 위치를 같은 방의 다른 사용자들에게 전송
+        socket.to(roomId).emit('whiteboardCursor', {
+          cursor,
+          userId: socket.user.id,
+          userName: socket.user.name,
+          timestamp: new Date()
+        });
+
+      } catch (error) {
+        console.error('Whiteboard cursor error:', error);
+      }
+    });
+
     // TTS request for AI messages
     socket.on('requestTTS', async ({ messageId, text, aiType }) => {
       try {

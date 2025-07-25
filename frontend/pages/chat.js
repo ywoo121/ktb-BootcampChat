@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AlertCircle,
   WifiOff
@@ -10,6 +10,7 @@ import { useChatRoom } from '../hooks/useChatRoom';
 import ChatMessages from '../components/chat/ChatMessages';
 import TypingIndicator from "../components/chat/TypingIndicator";
 import ChatInput from '../components/chat/ChatInput';
+import Whiteboard from '../components/whiteboard/Whiteboard';
 import { generateColorFromEmail, getContrastTextColor } from '../utils/colorUtils';
 
 const ChatPage = () => {
@@ -54,6 +55,12 @@ const ChatPage = () => {
     handleLoadMore,
     fightblockMode,
   } = useChatRoom();
+
+  const [isWhiteboardVisible, setIsWhiteboardVisible] = useState(false);
+
+  const handleWhiteboardToggle = () => {
+    setIsWhiteboardVisible(!isWhiteboardVisible);
+  };
 
   const renderParticipants = () => {
     if (!room?.participants) return null;
@@ -311,11 +318,23 @@ const ChatPage = () => {
               }}
               onFileRemove={removeFilePreview}
               fightblockMode={fightblockMode}
+              onWhiteboardToggle={handleWhiteboardToggle}
             />
             <TypingIndicator/>
           </Card.Footer>
         </Card.Root>
       </Flex>
+
+      {/* Whiteboard Component */}
+      {isWhiteboardVisible && (
+        <Whiteboard
+          roomId={room?._id}
+          socketRef={socketRef}
+          currentUser={currentUser}
+          isVisible={isWhiteboardVisible}
+          onClose={() => setIsWhiteboardVisible(false)}
+        />
+      )}
     </div>
   );
 };
