@@ -1,9 +1,9 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const http = require('http');
-const socketIO = require('socket.io');
 const path = require('path');
 const {router: roomsRouter, initializeSocket} = require('./routes/api/rooms');
 const routes = require('./routes');
@@ -49,8 +49,8 @@ const corsOptions = {
 
 // 기본 미들웨어
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({extended: true}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // OPTIONS 요청에 대한 처리
 app.options('*', cors(corsOptions));
@@ -82,7 +82,7 @@ app.use('/api', routes);
 console.log('API routes mounted successfully');
 
 // Socket.IO 설정
-const io = socketIO(server, {cors: corsOptions});
+const io = socketIo(server, { cors: corsOptions });
 require('./sockets/chat')(io);
 
 // Socket.IO 객체 전달

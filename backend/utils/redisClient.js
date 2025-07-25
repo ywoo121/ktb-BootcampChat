@@ -1,6 +1,6 @@
 // backend/utils/redisClient.js
 const Redis = require('ioredis');
-const { redisHost, redisPort } = require('../config/keys');
+const { redisHost, redisPort, redisPassword } = require('../config/keys');
 
 class MockRedisClient {
   constructor() {
@@ -121,6 +121,7 @@ class RedisClient {
             commandTimeout: 10000,     // 10초로 증가
             retryDelayOnFailover: 100, // 빠른 재시도
             maxRetriesPerRequest: 10,  // 리디렉션 재시도 증가
+            password: redisPassword,   // 비밀번호 추가
           },
           enableOfflineQueue: true,
           retryDelayOnFailover: 100,    // 빠른 재시도
@@ -176,6 +177,7 @@ class RedisClient {
         this.client = new Redis({
           host: redisHost,
           port: redisPort,
+          password: redisPassword,
           connectTimeout: 2000,
           commandTimeout: 2000,
           retryDelayOnFailover: 100,

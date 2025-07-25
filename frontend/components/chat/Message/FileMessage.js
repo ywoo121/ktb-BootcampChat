@@ -4,10 +4,11 @@ import {
   ImageIcon as Image, 
   MovieIcon as Film, 
   MusicIcon as Music, 
-  ExternalLinkIcon as ExternalLink, 
+  LinkOutlineIcon as ExternalLink,
   DownloadIcon as Download,
   ErrorCircleIcon as AlertCircle 
 } from '@vapor-ui/icons';
+
 import { Button, Text, Callout } from '@vapor-ui/core';
 import PersistentAvatar from '../../common/PersistentAvatar';
 import MessageContent from './MessageContent';

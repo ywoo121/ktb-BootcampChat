@@ -103,99 +103,73 @@ class FileService {
 
   async uploadFile(file, onProgress) {
     const validationResult = await this.validateFile(file);
-    if (!validationResult.success) {
-      return validationResult;
-    }
-
+    if (!validationResult.success) return validationResult;
+  
     try {
       const user = authService.getCurrentUser();
       if (!user?.token || !user?.sessionId) {
-        return { 
-          success: false, 
-          message: '인증 정보가 없습니다.' 
-        };
+        return { success: false, message: '인증 정보가 없습니다.' };
       }
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const source = CancelToken.source();
-      this.activeUploads.set(file.name, source);
-
-      const uploadUrl = this.baseUrl ? 
-        `${this.baseUrl}/api/files/upload` : 
-        '/api/files/upload';
-
-      const response = await axios.post(uploadUrl, formData, {
+  
+      // STEP 1: presigned URL 요청
+      const { data: presignedData } = await axios.post(`${this.baseUrl}/api/files/presigned-upload`, {
+        originalname: file.name,
+        mimetype: file.type,
+        size: file.size
+      }, {
+        headers: this.getHeaders()
+      });
+  
+      const { uploadUrl, fileKey, fileUrl } = presignedData;
+  
+      // STEP 2: S3에 직접 업로드
+      await axios.put(uploadUrl, file, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'x-auth-token': user.token,
-          'x-session-id': user.sessionId
+          'Content-Type': file.type
         },
-        cancelToken: source.token,
-        withCredentials: true,
         onUploadProgress: (progressEvent) => {
           if (onProgress) {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            onProgress(percentCompleted);
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
           }
         }
       });
-
-      this.activeUploads.delete(file.name);
-
-      console.log('File upload API response:', response.data);
-
-      if (!response.data || !response.data.success) {
+  
+      // STEP 3: 메타데이터 등록 요청
+      const { data: uploadResponse } = await axios.post(`${this.baseUrl}/api/files/upload`, {
+        filename: fileKey.split('/').pop(),
+        originalname: file.name,
+        mimetype: file.type,
+        size: file.size,
+        path: fileKey,
+        url: fileUrl
+      }, {
+        headers: this.getHeaders()
+      });
+  
+      if (!uploadResponse.success) {
         return {
           success: false,
-          message: response.data?.message || '파일 업로드에 실패했습니다.'
+          message: uploadResponse.message || '파일 업로드 실패'
         };
       }
-
-      const fileData = response.data.file;
+  
       return {
         success: true,
-        data: response.data,
-        file: {
-          ...fileData,
-          url: this.getFileUrl(fileData.filename, true)
+        data: {
+          ...uploadResponse,
+          file: {
+            ...uploadResponse.file,
+            url: fileUrl // 미리보기 URL 바로 사용 가능
+          }
         }
       };
-
+  
     } catch (error) {
-      this.activeUploads.delete(file.name);
-      
-      if (isCancel(error)) {
-        return {
-          success: false,
-          message: '업로드가 취소되었습니다.'
-        };
-      }
-
-      if (error.response?.status === 401) {
-        try {
-          const refreshed = await authService.refreshToken();
-          if (refreshed) {
-            return this.uploadFile(file, onProgress);
-          }
-          return {
-            success: false,
-            message: '인증이 만료되었습니다. 다시 로그인해주세요.'
-          };
-        } catch (refreshError) {
-          return {
-            success: false,
-            message: '인증이 만료되었습니다. 다시 로그인해주세요.'
-          };
-        }
-      }
-
       return this.handleUploadError(error);
     }
   }
+
   async downloadFile(filename, originalname) {
     try {
       const user = authService.getCurrentUser();

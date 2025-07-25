@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SystemMessage = ({ msg }) => {
+const SystemMessage = React.forwardRef(({ msg }, ref) => {
   const formattedTime = new Date(msg.timestamp).toLocaleString('ko-KR', {
     year: 'numeric',
     month: 'long',
@@ -8,13 +8,13 @@ const SystemMessage = ({ msg }) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false
+    hour12: false,
   }).replace(/\./g, '년').replace(/\s/g, ' ').replace('일 ', '일 ');
 
   console.log(formattedTime);
-  
+
   return (
-    <div className="message-system">
+    <div ref={ref} className="message-system">
       {msg.content}
       {formattedTime && (
         <div className="message-time">
@@ -23,6 +23,9 @@ const SystemMessage = ({ msg }) => {
       )}
     </div>
   );
-};
+});
+
+// 디버깅을 위한 이름 설정
+SystemMessage.displayName = 'SystemMessage';
 
 export default React.memo(SystemMessage);

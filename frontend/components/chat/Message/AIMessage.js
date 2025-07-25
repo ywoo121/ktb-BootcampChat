@@ -14,7 +14,7 @@ const AIMessage = ({
   onReactionRemove,
   room = null,
   messageRef,
-  socketRef
+  socketRef,
 }) => {
   // TTS player hook
   const {
@@ -30,6 +30,7 @@ const AIMessage = ({
     socketRef,
     onError: (error) => console.error('TTS Error:', error)
   });
+  
   const formattedTime = new Date(msg.timestamp).toLocaleString('ko-KR', {
     year: 'numeric',
     month: 'long',
@@ -41,14 +42,40 @@ const AIMessage = ({
   }).replace(/\./g, '년').replace(/\s/g, ' ').replace('일 ', '일 ');
 
   // AI 사용자 정보 생성
+  // AI 사용자 정보 생성
   const aiUser = {
-    name: msg.aiType === 'wayneAI' ? 'Wayne AI' : 'Consulting AI',
-    email: msg.aiType === 'wayneAI' ? 'ai@wayne.ai' : 'ai@consulting.ai',
-    avatarInitial: msg.aiType === 'wayneAI' ? 'W' : 'C'
+    name:
+      msg.aiType === "wayneAI"
+        ? "Wayne AI"
+        : msg.aiType === "consultingAI"
+        ? "Consulting AI"
+        : msg.aiType === "taxAI"
+        ? "Tax AI"
+        : msg.aiType === "algorithmAI"
+        ? "Algorithm AI"
+        : "Wayne AI", // 기본값은 'Wayne AI'
+    email:
+      msg.aiType === "wayneAI"
+        ? "ai@wayne.ai"
+        : msg.aiType === "consultingAI"
+        ? "ai@consulting.ai"
+        : msg.aiType === "taxAI"
+        ? "ai@tax.ai"
+        : msg.aiType === "algorithmAI"
+        ? "ai@algorithm.ai"
+        : "ai@wayne.ai", // 기본 이메일은 'ai@wayne.ai'
+    avatarInitial:
+      msg.aiType === "wayneAI"
+        ? "W"
+        : msg.aiType === "consultingAI"
+        ? "C"
+        : msg.aiType === "taxAI"
+        ? "T"
+        : msg.aiType === "algorithmAI"
+        ? "A"
+        : "W", // 기본 이니셜은 'W'
   };
 
-  const [buttonClicked, setButtonClicked] = useState(false);
-  const [cooldown, setCooldown] = useState(false);
   const [buttonLocked, setButtonLocked] = useState(false);
 
   // Handle TTS playback
@@ -121,7 +148,7 @@ const AIMessage = ({
     if (!isMessageGenerating(msg._id) && !isMessagePlaying(msg._id)) {
       setButtonLocked(false);
     }
-  }, [isMessageGenerating(msg._id), isMessagePlaying(msg._id)]);
+  }, [isMessageGenerating, isMessagePlaying, msg._id]);
 
   return (
     <div className="message-group yours">
@@ -256,7 +283,7 @@ AIMessage.defaultProps = {
   currentUser: null,
   onReactionAdd: () => {},
   onReactionRemove: () => {},
-  room: null
+  room: null,
 };
 
 export default React.memo(AIMessage);

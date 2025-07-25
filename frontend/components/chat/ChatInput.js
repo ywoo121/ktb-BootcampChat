@@ -12,6 +12,7 @@ import MentionDropdown from './MentionDropdown';
 import FilePreview from './FilePreview';
 import VoiceRecorder from './VoiceRecorder';
 import fileService from '../../services/fileService';
+import socket from '../../services/socket';
 
 const ChatInput = forwardRef(({
   message = '',
@@ -47,7 +48,8 @@ const ChatInput = forwardRef(({
   const [isDragging, setIsDragging] = useState(false);
   const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
   const [voiceError, setVoiceError] = useState(null);
-
+  const typingTimeoutRef = useRef(null);
+  
   // Handle voice transcription
   const handleVoiceTranscription = useCallback((transcription, isPartial = false) => {
     if (!transcription || !transcription.trim()) return;
@@ -160,6 +162,15 @@ const ChatInput = forwardRef(({
         setMessage('');
         setFiles([]);
 
+        // Reset textarea height after submission
+        setTimeout(() => {
+          if (messageInputRef?.current) {
+            messageInputRef.current.style.height = 'auto';
+            messageInputRef.current.style.height = '40px';
+            messageInputRef.current.style.overflowY = 'hidden';
+          }
+        }, 0);
+
       } catch (error) {
         console.error('File submit error:', error);
         setUploadError(error.message);
@@ -170,8 +181,17 @@ const ChatInput = forwardRef(({
         content: message.trim()
       });
       setMessage('');
+      
+      // Reset textarea height after submission
+      setTimeout(() => {
+        if (messageInputRef?.current) {
+          messageInputRef.current.style.height = 'auto';
+          messageInputRef.current.style.height = '40px';
+          messageInputRef.current.style.overflowY = 'hidden';
+        }
+      }, 0);
     }
-  }, [files, message, onSubmit, setMessage]);
+  }, [files, message, onSubmit, setMessage, messageInputRef]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -306,6 +326,16 @@ const ChatInput = forwardRef(({
 
     onMessageChange(e);
 
+    // 타이핑 이벤트 emit
+    socket.emit('typing');
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('stopTyping');
+    }, 1000); // 1초 동안 입력 없으면 stop
+
     if (lastAtSymbol !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtSymbol + 1);
       const hasSpaceAfterAt = textAfterAt.includes(' ');
@@ -393,10 +423,15 @@ const ChatInput = forwardRef(({
           return;
       }
     } else if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.nativeEvent.isComposing) return;
       e.preventDefault();
+      if (e.nativeEvent.isComposing) {
+        return;
+      }
       if (message.trim() || files.length > 0) {
         handleSubmit(e);
       }
+
     } else if (e.key === 'Escape' && showEmojiPicker) {
       setShowEmojiPicker(false);
     }
@@ -448,13 +483,18 @@ const ChatInput = forwardRef(({
       newSelectionStart = newCursorPos;
       newSelectionEnd = newCursorPos;
     } else {
-      newText = message.substring(0, start) +
-        markdown + selectedText + markdown +
-        message.substring(end);
       if (selectedText) {
+        newText =
+          message.substring(0, start) +
+          markdown +
+          selectedText +
+          markdown +
+          message.substring(end);
         newSelectionStart = start + markdown.length;
         newSelectionEnd = newSelectionStart + selectedText.length;
       } else {
+        newText =
+          message.substring(0, start) + markdown + message.substring(end);
         newSelectionStart = start + markdown.length;
         newSelectionEnd = newSelectionStart;
       }
@@ -691,7 +731,6 @@ const ChatInput = forwardRef(({
               />
             </HStack>
           </div>
-        </div>
       </div>
 
       {showMentionList && (

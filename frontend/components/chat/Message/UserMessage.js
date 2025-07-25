@@ -9,8 +9,8 @@ const UserMessage = ({
   msg = {}, 
   isMine = false, 
   currentUser = null,
-  onReactionAdd,
-  onReactionRemove,
+  onReactionAdd = () => {},
+  onReactionRemove = () => {},
   room = null,
   messageRef,
   socketRef
@@ -65,6 +65,7 @@ const UserMessage = ({
               messageId={msg._id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
+              senderId={msg.sender?.id || msg.sender?._id}
               socketRef={socketRef}
             />            
           </div>
@@ -83,15 +84,6 @@ const UserMessage = ({
       </div>
     </div>
   );
-};
-
-UserMessage.defaultProps = {
-  msg: {},
-  isMine: false,
-  currentUser: null,
-  onReactionAdd: () => {},
-  onReactionRemove: () => {},
-  room: null
 };
 
 export default React.memo(UserMessage);

@@ -35,7 +35,7 @@ const MessageContent = ({ content, isAI = false }) => {
 
   // 멘션 패턴을 찾아서 React 엘리먼트로 변환하는 함수
   const renderContentWithMentions = useMemo(() => (text) => {
-    const mentionPattern = /@(wayneAI|consultingAI|[\w.-]+)/g;
+    const mentionPattern = /@(wayneAI|consultingAI|taxAI|algorithmAI|[\w.-]+)/g;
     const parts = [];
     let lastIndex = 0;
     let match;
@@ -50,13 +50,38 @@ const MessageContent = ({ content, isAI = false }) => {
       }
 
       const mentionedName = match[1];
-      const isAIMention = mentionedName === 'wayneAI' || mentionedName === 'consultingAI';
-      const displayName = isAIMention 
-        ? (mentionedName === 'wayneAI' ? 'Wayne AI' : 'Consulting AI')
+      const isAIMention =
+        mentionedName === 'wayneAI' ||
+        mentionedName === 'consultingAI' ||
+        mentionedName === 'taxAI' ||
+        mentionedName === 'algorithmAI';
+
+      const displayName = isAIMention
+        ? (
+            mentionedName === 'wayneAI'
+              ? 'Wayne AI'
+              : mentionedName === 'consultingAI'
+                ? 'Consulting AI'
+                : mentionedName === 'taxAI'
+                ? 'Tax AI'
+                : mentionedName === 'algorithmAI'
+                ? 'Algorithm AI'
+                : 'Wayne AI'
+          )
         : mentionedName;
 
-      const mentionClass = isAIMention 
-        ? `mention mention-bot ${mentionedName === 'wayneAI' ? 'mention-wayne' : 'mention-consulting'}`
+      const mentionClass = isAIMention
+        ? (
+            mentionedName === 'wayneAI'
+              ? 'mention mention-bot mention-wayne'
+              : mentionedName === 'consultingAI'
+                ? 'mention mention-bot mention-consulting'
+                : mentionedName === 'taxAI'
+                ? 'mention mention-bot mention-tax'
+                : mentionedName === 'algorithmAI'
+                ? 'mention mention-bot mention-algorithm'
+                : 'mention mention-bot mention-wayne'
+          )
         : 'mention mention-user';
 
       parts.push(
