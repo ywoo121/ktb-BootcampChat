@@ -81,6 +81,9 @@ const MentionDropdown = ({
       if (user.name === 'consultingAI') return 'C';
       if (user.name === 'taxAI') return 'T'; 
       if (user.name === 'algorithmAI') return 'A';
+      if (user.name === 'ragAI') return 'R';
+      if (user.name === 'docAI') return 'D';
+      if (user.name === 'helpAI') return 'H';
       return 'M';
     }
     return user.name.charAt(0).toUpperCase();
@@ -139,6 +142,12 @@ const MentionDropdown = ({
         ? 'Tax AI'
         : user.name === 'algorithmAI'
         ? 'Algorithm AI'
+        : user.name === 'ragAI'
+        ? 'RAG AI'
+        : user.name === 'docAI'
+        ? 'Documentation AI'
+        : user.name === 'helpAI'
+        ? 'Help AI'
         : user.name
     ) : (
       user.name
