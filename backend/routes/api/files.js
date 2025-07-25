@@ -40,7 +40,7 @@ router.post('/upload', auth, s3UploadService.multerConfig.single('file'), async 
       success: true,
       message: '파일 업로드 성공',
       file: {
-        _id: file._id,
+        _id: file.id,
         filename: file.filename,
         originalname: file.originalname,
         mimetype: file.mimetype,

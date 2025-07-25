@@ -116,7 +116,7 @@ const ChatPage = () => {
 
             return (
               <Avatar.Root
-                key={participant._id}
+                key={participant.id}
                 size="md"
                 style={{
                   backgroundColor,
@@ -364,7 +364,7 @@ const ChatPage = () => {
       {/* Whiteboard Component */}
       {isWhiteboardVisible && (
         <Whiteboard
-          roomId={room?._id}
+          roomId={room?.id}
           socketRef={socketRef}
           currentUser={currentUser}
           isVisible={isWhiteboardVisible}
@@ -407,7 +407,7 @@ const ChatPage = () => {
           </div>
           <DetectiveGamePanel
             socketRef={socketRef}
-            roomId={room?._id}
+            roomId={room?.id}
             currentUser={currentUser}
           />
         </div>

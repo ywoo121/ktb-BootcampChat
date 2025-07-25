@@ -75,17 +75,17 @@ const UserMessage = ({
               messageType={msg.type}
               participants={room.participants}
               readers={msg.readers}
-              messageId={msg._id}
+              messageId={msg.id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
-              senderId={msg.sender?.id || msg.sender?._id}
+              senderId={msg.sender?.id || msg.sender?.id}
               socketRef={socketRef}
             />            
           </div>
         </div>
           
         <MessageActions 
-          messageId={msg._id}
+          messageId={msg.id}
           messageContent={msg.content}
           reactions={msg.reactions}
           currentUserId={currentUser?.id}

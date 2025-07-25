@@ -286,7 +286,7 @@ const ChatMessages = ({
     if (!room?.isAnonymous || !Array.isArray(room.participants)) return {};
 
     return room.participants.reduce((acc, user, idx) => {
-      acc[user._id || user.id] = `익명${idx + 1}`;
+      acc[user.id || user.id] = `익명${idx + 1}`;
       return acc;
     }, {});
   }, [room]);
@@ -307,8 +307,8 @@ const ChatMessages = ({
   // 내 메시지 판별: id, _id, email, name 중 하나라도 일치하면 내 메시지로 간주
   function isMyMessage(msg, currentUser) {
     if (!msg.sender || !currentUser) return false;
-    const senderId = String(msg.sender.id || msg.sender._id || '');
-    const userId = String(currentUser.id || currentUser._id || '');
+    const senderId = String(msg.sender.id || msg.sender.id || '');
+    const userId = String(currentUser.id || currentUser.id || '');
     if (senderId && userId && senderId === userId) return true;
     if (msg.sender.email && currentUser.email && msg.sender.email === currentUser.email) return true;
     if (msg.sender.name && currentUser.name && msg.sender.name === currentUser.name) return true;
@@ -428,7 +428,7 @@ const ChatMessages = ({
 
     const isLast = idx === allMessages.length - 1;
 
-    const senderId = msg?.sender?._id || msg?.sender?.id || msg?.sender;
+    const senderId = msg?.sender?.id || msg?.sender?.id || msg?.sender;
 
     const displayName = room?.isAnonymous ? anonymousNameMap[senderId] : msg?.sender?.name;
 
@@ -447,7 +447,7 @@ const ChatMessages = ({
 
     return (
       <MessageComponent
-        key={msg._id || `msg-${idx}`}
+        key={msg.id || `msg-${idx}`}
         ref={isLast ? lastMessageRef : null}
         {...commonProps}
         msg={{...msg, displayName}}

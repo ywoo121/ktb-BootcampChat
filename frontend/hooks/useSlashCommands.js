@@ -101,7 +101,7 @@ export const useSlashCommands = (socketRef, currentRoom) => {
     socketRef.current.emit('executeSlashCommand', {
       command: parsed.command,
       args: parsed.args,
-      roomId: currentRoom._id
+      roomId: currentRoom.id
     });
 
     setIsDropdownOpen(false);

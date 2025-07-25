@@ -47,7 +47,7 @@ const TranslationButton = ({
         isOpen={showTranslationModal}
         onClose={() => setShowTranslationModal(false)}
         originalText={message.content}
-        messageId={message._id}
+        messageId={message.id}
         socketRef={socketRef}
         currentRoom={currentRoom}
       />

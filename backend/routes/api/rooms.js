@@ -126,23 +126,23 @@ router.get('/', [limiter, auth], async (req, res) => {
       const participants = Array.isArray(room.participants) ? room.participants : [];
 
       return {
-        _id: room._id?.toString() || 'unknown',
+        _id: room.id?.toString() || 'unknown',
         name: room.name || '제목 없음',
         hasPassword: !!room.hasPassword,
         isAnonymous: room.isAnonymous,
         creator: {
-          _id: creator._id?.toString() || 'unknown',
+          _id: creator.id?.toString() || 'unknown',
           name: creator.name || '알 수 없음',
           email: creator.email || ''
         },
-        participants: participants.filter(p => p && p._id).map(p => ({
-          _id: p._id.toString(),
+        participants: participants.filter(p => p && p.id).map(p => ({
+          _id: p.id.toString(),
           name: p.name || '알 수 없음',
           email: p.email || ''
         })),
         participantsCount: participants.length,
         createdAt: room.createdAt || new Date(),
-        isCreator: creator._id?.toString() === req.user.id,
+        isCreator: creator.id?.toString() === req.user.id,
       };
     }).filter(room => room !== null);
 
@@ -216,7 +216,7 @@ router.post('/', auth, async (req, res) => {
     const savedRoom = await newRoom.save();
     
     // 🚀 LEAN 최적화: 생성된 방 정보 조회
-    const populatedRoom = await Room.findById(savedRoom._id)
+    const populatedRoom = await Room.findById(savedRoom.id)
       .populate({
         path: 'creator',
         select: 'name email',
@@ -325,7 +325,7 @@ router.post('/:roomId/join', auth, async (req, res) => {
     }
 
     // 🚀 LEAN 최적화: 업데이트된 방 정보 조회
-    const populatedRoom = await Room.findById(room._id)
+    const populatedRoom = await Room.findById(room.id)
       .populate({
         path: 'participants',
         select: 'name email',

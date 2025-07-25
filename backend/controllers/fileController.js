@@ -36,12 +36,12 @@ const getFileFromRequest = async (req) => {
     console.log('Found file:', file);
 
     // 메시지를 통한 채팅방 권한 확인
-    const message = await Message.findOne({ file: file._id })
+    const message = await Message.findOne({ file: file.id })
       .select('room')
       .lean();
       
     if (!message) {
-      console.log('File message not found for file:', file._id);
+      console.log('File message not found for file:', file.id);
       throw new Error('File message not found');
     }
 
@@ -106,13 +106,13 @@ exports.uploadFile = async (req, res) => {
 
     await file.save();
 
-    console.log('File saved to database:', file._id);
+    console.log('File saved to database:', file.id);
 
     res.status(200).json({
       success: true,
       message: '파일 업로드 성공',
       file: {
-        _id: file._id,
+        _id: file.id,
         filename: file.filename,
         originalname: file.originalname,
         mimetype: file.mimetype,

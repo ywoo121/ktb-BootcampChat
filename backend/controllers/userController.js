@@ -86,7 +86,7 @@ exports.register = async (req, res) => {
       success: true,
       message: "회원가입이 완료되었습니다.",
       user: {
-        id: newUser._id,
+        id: newUser.id,
         name: newUser.name,
         email: newUser.email,
         profileImage: newUser.profileImage,
@@ -117,7 +117,7 @@ exports.getProfile = async (req, res) => {
     res.json({
       success: true,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         profileImage: user.profileImage,
@@ -182,7 +182,7 @@ exports.updateProfile = async (req, res) => {
     await user.save();
 
     // 새 JWT 발급
-    const sessionInfo = await SessionService.getActiveSession(user._id);
+    const sessionInfo = await SessionService.getActiveSession(user.id);
     if (!sessionInfo || !sessionInfo.sessionId) {
       return res.status(401).json({
         success: false,
@@ -192,7 +192,7 @@ exports.updateProfile = async (req, res) => {
 
     const newToken = jwt.sign(
       {
-        user: { id: user._id },
+        user: { id: user.id },
         sessionId: sessionInfo.sessionId,
         iat: Math.floor(Date.now() / 1000),
       },
@@ -205,7 +205,7 @@ exports.updateProfile = async (req, res) => {
       message: "프로필이 업데이트되었습니다.",
       token: newToken,
       user: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         profileImage: user.profileImage,
@@ -468,7 +468,7 @@ exports.searchUsers = async (req, res) => {
     res.json({
       success: true,
       users: users.map(user => ({
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         profileImage: user.profileImage
@@ -510,7 +510,7 @@ exports.getUsers = async (req, res) => {
     res.json({
       success: true,
       users: users.map(user => ({
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         profileImage: user.profileImage,

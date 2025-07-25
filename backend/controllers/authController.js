@@ -50,10 +50,10 @@ const authController = {
       });
 
       await user.save();
-      console.log('User created:', user._id);
+      console.log('User created:', user.id);
 
       // Create session with metadata
-      const sessionInfo = await SessionService.createSession(user._id, {
+      const sessionInfo = await SessionService.createSession(user.id, {
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
         deviceInfo: req.headers['user-agent'],
@@ -67,7 +67,7 @@ const authController = {
       // Generate token with additional claims
       const token = jwt.sign(
         { 
-          user: { id: user._id },
+          user: { id: user.id },
           sessionId: sessionInfo.sessionId,
           iat: Math.floor(Date.now() / 1000)
         },
@@ -84,7 +84,7 @@ const authController = {
         token,
         sessionId: sessionInfo.sessionId,
         user: {
-          _id: user._id,
+          _id: user.id,
           name: user.name,
           email: user.email
         }
@@ -141,7 +141,7 @@ const authController = {
       // 기존 세션 확인 시도
       let existingSession = null;
       try {
-        existingSession = await SessionService.getActiveSession(user._id);
+        existingSession = await SessionService.getActiveSession(user.id);
       } catch (sessionError) {
         console.error('Session check error:', sessionError);
       }
@@ -177,7 +177,7 @@ const authController = {
                 try {
                   if (data.token === existingSession.token) {
                     // 기존 세션 종료 및 소켓 연결 해제
-                    await SessionService.removeSession(user._id, existingSession.sessionId);
+                    await SessionService.removeSession(user.id, existingSession.sessionId);
                     io.to(existingSession.socketId).emit('session_terminated', {
                       reason: 'new_login',
                       message: '다른 기기에서 로그인하여 현재 세션이 종료되었습니다.'
@@ -223,12 +223,12 @@ const authController = {
           }
         } else {
           // Socket.IO 연결이 없는 경우 자동으로 기존 세션 종료
-          await SessionService.removeAllUserSessions(user._id);
+          await SessionService.removeAllUserSessions(user.id);
         }
       }
 
       // 새 세션 생성
-      const sessionInfo = await SessionService.createSession(user._id, {
+      const sessionInfo = await SessionService.createSession(user.id, {
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
         deviceInfo: req.headers['user-agent'],
@@ -245,7 +245,7 @@ const authController = {
       // JWT 토큰 생성
       const token = jwt.sign(
         { 
-          user: { id: user._id },
+          user: { id: user.id },
           sessionId: sessionInfo.sessionId,
           iat: Math.floor(Date.now() / 1000)
         },
@@ -267,7 +267,7 @@ const authController = {
         token,
         sessionId: sessionInfo.sessionId,
         user: {
-          _id: user._id,
+          _id: user.id,
           name: user.name,
           email: user.email,
           profileImage: user.profileImage
@@ -374,7 +374,7 @@ const authController = {
       }
 
       // 세션 검증
-      const validationResult = await SessionService.validateSession(user._id, sessionId);
+      const validationResult = await SessionService.validateSession(user.id, sessionId);
       if (!validationResult.isValid) {
         console.log('Invalid session:', validationResult);
         return res.status(401).json({
@@ -385,9 +385,9 @@ const authController = {
       }
 
       // 세션 갱신
-      await SessionService.refreshSession(user._id, sessionId);
+      await SessionService.refreshSession(user.id, sessionId);
 
-      console.log('Token verification successful for user:', user._id);
+      console.log('Token verification successful for user:', user.id);
 
       // 프로필 업데이트 필요 여부 확인
       if (validationResult.needsProfileRefresh) {
@@ -397,7 +397,7 @@ const authController = {
       res.json({
         success: true,
         user: {
-          _id: user._id,
+          _id: user.id,
           name: user.name,
           email: user.email,
           profileImage: user.profileImage
@@ -448,10 +448,10 @@ const authController = {
       }
 
       // 이전 세션 제거
-      await SessionService.removeSession(user._id, oldSessionId);
+      await SessionService.removeSession(user.id, oldSessionId);
 
       // 새 세션 생성
-      const sessionInfo = await SessionService.createSession(user._id, {
+      const sessionInfo = await SessionService.createSession(user.id, {
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
         deviceInfo: req.headers['user-agent'],
@@ -465,7 +465,7 @@ const authController = {
       // 새로운 JWT 토큰 생성
       const token = jwt.sign(
         { 
-          user: { id: user._id },
+          user: { id: user.id },
           sessionId: sessionInfo.sessionId,
           iat: Math.floor(Date.now() / 1000)
         },
@@ -482,7 +482,7 @@ const authController = {
         token,
         sessionId: sessionInfo.sessionId,
         user: {
-          _id: user._id,
+          _id: user.id,
           name: user.name,
           email: user.email,
           profileImage: user.profileImage

@@ -405,7 +405,7 @@ const SearchPanel = ({ onClose, onRoomSelect, onUserSelect }) => {
               <VStack gap="200">
                 {searchResults.rooms.map((room) => (
                   <div
-                    key={room._id}
+                    key={room.id}
                     onClick={() => handleRoomClick(room)}
                     style={{
                       padding: '12px',
@@ -483,7 +483,7 @@ const SearchPanel = ({ onClose, onRoomSelect, onUserSelect }) => {
               <VStack gap="200">
                 {searchResults.messages.map((message) => (
                   <div
-                    key={message._id}
+                    key={message.id}
                     style={{
                       padding: '12px',
                       border: '1px solid #e5e7eb',
@@ -533,7 +533,7 @@ const SearchPanel = ({ onClose, onRoomSelect, onUserSelect }) => {
               <VStack gap="200">
                 {searchResults.users.map((user) => (
                   <div
-                    key={user._id}
+                    key={user.id}
                     onClick={() => handleUserClick(user)}
                     style={{
                       padding: '12px',

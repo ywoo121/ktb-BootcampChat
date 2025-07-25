@@ -116,7 +116,7 @@ UserSchema.post('save', function(doc, next) {
 // 비밀번호 비교 메서드
 UserSchema.methods.matchPassword = async function(enteredPassword) {
   try {
-    const user = await this.constructor.findById(this._id).select('+password');
+    const user = await this.constructor.findById(this.id).select('+password');
     if (!user || !user.password) {
       return false;
     }
@@ -176,7 +176,7 @@ UserSchema.methods.changePassword = async function(currentPassword, newPassword)
 UserSchema.methods.deleteAccount = async function() {
   try {
     // 연결된 데이터 삭제 로직 추가
-    await this.constructor.deleteOne({ _id: this._id });
+    await this.constructor.deleteOne({ _id: this.id });
     return true;
   } catch (error) {
     throw error;

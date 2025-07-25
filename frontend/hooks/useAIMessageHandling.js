@@ -69,7 +69,7 @@ export const useAIMessageHandling = (
     });
 
     setMessages(prev => [...prev, {
-      _id: data._id,
+      _id: data.id,
       type: 'ai',
       aiType: data.aiType,
       content: data.content,

@@ -209,7 +209,7 @@ MessageSchema.methods.addReaction = async function(emoji, userId) {
   } catch (error) {
     console.error('Add reaction error:', {
       error,
-      messageId: this._id,
+      messageId: this.id,
       emoji,
       userId
     });
@@ -237,7 +237,7 @@ MessageSchema.methods.removeReaction = async function(emoji, userId) {
   } catch (error) {
     console.error('Remove reaction error:', {
       error,
-      messageId: this._id,
+      messageId: this.id,
       emoji,
       userId
     });
@@ -262,7 +262,7 @@ MessageSchema.pre('remove', async function(next) {
   } catch (error) {
     console.error('Message pre-remove error:', {
       error,
-      messageId: this._id,
+      messageId: this.id,
       type: this.type
     });
     next(error);
@@ -284,7 +284,7 @@ MessageSchema.pre('save', function(next) {
   } catch (error) {
     console.error('Message pre-save error:', {
       error,
-      messageId: this._id
+      messageId: this.id
     });
     next(error);
   }
@@ -306,7 +306,7 @@ MessageSchema.methods.toJSON = function() {
   } catch (error) {
     console.error('Message toJSON error:', {
       error,
-      messageId: this._id
+      messageId: this.id
     });
     return {};
   }

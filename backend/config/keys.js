@@ -15,6 +15,10 @@ module.exports = {
   // OpenAI API (RAG 기능용)
   openaiApiKey: process.env.OPENAI_API_KEY,
   
+  // 암호화 관련
+  encryptionKey: process.env.ENCRYPTION_KEY,
+  passwordSalt: process.env.PASSWORD_SALT,
+  
   // 부하테스트 관련 설정
   enableRequestLogging: process.env.ENABLE_REQUEST_LOGGING === 'true',
   dbConnectionPoolSize: parseInt(process.env.DB_CONNECTION_POOL_SIZE) || 10,

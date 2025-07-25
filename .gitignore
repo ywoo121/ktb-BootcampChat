@@ -3,9 +3,11 @@ node_modules/
 dist/
 build/
 .npmrc
-.env.local
 .env
+.env.local
+.env.*.local
 backend/uploads
+*/.idea/
 
 # Next.js
 .next/

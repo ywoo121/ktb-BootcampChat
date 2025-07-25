@@ -98,16 +98,16 @@ const AIMessage = ({
 
   // Handle TTS playback
   const handleTTSClick = React.useCallback(() => {
-    if (buttonLocked || isMessageGenerating(msg._id) || isMessagePlaying(msg._id)) return;
+    if (buttonLocked || isMessageGenerating(msg.id) || isMessagePlaying(msg.id)) return;
     setButtonLocked(true);
     if (!msg.content || isStreaming) return;
 
-    togglePlayback(msg.content, msg.aiType, msg._id);
-  }, [buttonLocked, isMessageGenerating, isMessagePlaying, msg.content, msg.aiType, msg._id, isStreaming, togglePlayback]);
+    togglePlayback(msg.content, msg.aiType, msg.id);
+  }, [buttonLocked, isMessageGenerating, isMessagePlaying, msg.content, msg.aiType, msg.id, isStreaming, togglePlayback]);
 
   // Get TTS button icon based on state
   const getTTSIcon = () => {
-    const messageId = msg._id;
+    const messageId = msg.id;
 
     if (isMessageGenerating(messageId)) {
       return (
@@ -163,10 +163,10 @@ const AIMessage = ({
 
   // Reset buttonLocked when TTS generation and playback are both finished
   React.useEffect(() => {
-    if (!isMessageGenerating(msg._id) && !isMessagePlaying(msg._id)) {
+    if (!isMessageGenerating(msg.id) && !isMessagePlaying(msg.id)) {
       setButtonLocked(false);
     }
-  }, [isMessageGenerating, isMessagePlaying, msg._id]);
+  }, [isMessageGenerating, isMessagePlaying, msg.id]);
 
   return (
     <div className="message-group yours">
@@ -194,7 +194,7 @@ const AIMessage = ({
             {/* TTS Playback Button */}
             <button
               onClick={handleTTSClick}
-              disabled={buttonLocked || !msg.content || isStreaming || isMessageGenerating(msg._id) || isMessagePlaying(msg._id)}
+              disabled={buttonLocked || !msg.content || isStreaming || isMessageGenerating(msg.id) || isMessagePlaying(msg.id)}
               className="tts-button"
               aria-label={`${aiUser.name} 메시지 음성으로 듣기 (${getVoiceName()} 목소리)`}
               title={`${getVoiceName()} 목소리로 듣기`}
@@ -203,7 +203,7 @@ const AIMessage = ({
                 border: '1px solid var(--vapor-color-border)',
                 borderRadius: 'var(--vapor-radius-sm)',
                 padding: '4px 8px',
-                cursor: buttonLocked || isMessageGenerating(msg._id) || isMessagePlaying(msg._id) ? 'not-allowed' : 'pointer',
+                cursor: buttonLocked || isMessageGenerating(msg.id) || isMessagePlaying(msg.id) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
@@ -211,7 +211,7 @@ const AIMessage = ({
                 color: 'var(--vapor-color-text-secondary)',
                 transition: 'all 0.2s ease',
                 marginRight: '8px',
-                opacity: buttonLocked || isMessageGenerating(msg._id) || isMessagePlaying(msg._id) ? 0.6 : 1
+                opacity: buttonLocked || isMessageGenerating(msg.id) || isMessagePlaying(msg.id) ? 0.6 : 1
               }}
               onMouseEnter={(e) => {
                 if (!e.currentTarget.disabled) {
@@ -226,7 +226,7 @@ const AIMessage = ({
                 e.currentTarget.style.color = 'var(--vapor-color-text-secondary)';
               }}
             >
-              {isMessageGenerating(msg._id) ? (
+              {isMessageGenerating(msg.id) ? (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
               ) : (
                 getTTSIcon()
@@ -237,7 +237,7 @@ const AIMessage = ({
               messageType={msg.type}
               participants={room.participants}
               readers={msg.readers}
-              messageId={msg._id}
+              messageId={msg.id}
               messageRef={messageRef}
               currentUserId={currentUser.id}
               socketRef={socketRef}
@@ -246,7 +246,7 @@ const AIMessage = ({
         )}
 
         {/* Audio Progress Bar (shown when playing) */}
-        {isMessagePlaying(msg._id) && audioProgress > 0 && (
+        {isMessagePlaying(msg.id) && audioProgress > 0 && (
           <div style={{
             width: '100%',
             height: '2px',
@@ -266,7 +266,7 @@ const AIMessage = ({
         )}
 
         {/* TTS Error Display */}
-        {ttsError && isMessageGenerating(msg._id) && (
+        {ttsError && isMessageGenerating(msg.id) && (
           <div style={{
             marginTop: '8px',
             padding: '4px 8px',
@@ -282,7 +282,7 @@ const AIMessage = ({
       </div>
 
       <MessageActions
-        messageId={msg._id}
+        messageId={msg.id}
         messageContent={msg.content}
         reactions={msg.reactions}
         currentUserId={currentUser?.id}

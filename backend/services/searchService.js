@@ -149,7 +149,7 @@ class SearchService {
       // 각 방의 최근 메시지와 참가자 수 추가
       const enrichedRooms = await Promise.all(
         rooms.map(async (room) => {
-          const lastMessage = await Message.findOne({ room: room._id })
+          const lastMessage = await Message.findOne({ room: room.id })
             .sort({ timestamp: -1 })
             .populate('sender', 'name')
             .select('content timestamp sender type')
@@ -197,7 +197,7 @@ class SearchService {
         ]
       }).select('_id').lean();
 
-      const roomIds = accessibleRooms.map(room => room._id);
+      const roomIds = accessibleRooms.map(room => room.id);
 
       // 메시지 검색 쿼리 구성
       const searchQuery = {
@@ -305,7 +305,7 @@ class SearchService {
       const enrichedUsers = await Promise.all(
         users.map(async (user) => {
           const commonRooms = await Room.find({
-            participants: { $all: [userId, user._id] }
+            participants: { $all: [userId, user.id] }
           }).select('name').lean();
 
           return {
@@ -511,7 +511,7 @@ class SearchService {
       // 발신자 필터
       if (senders.length > 0) {
         filteredResults.messages = filteredResults.messages.filter(message =>
-          senders.includes(message.sender._id.toString())
+          senders.includes(message.sender.id.toString())
         );
       }
 

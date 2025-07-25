@@ -115,7 +115,7 @@ const TranslationModal = ({
       messageId,
       text: originalText,
       targetLang: targetLanguage,
-      roomId: currentRoom._id
+      roomId: currentRoom.id
     });
   };
 

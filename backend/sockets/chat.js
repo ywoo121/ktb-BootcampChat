@@ -205,7 +205,7 @@ module.exports = function (io) {
 
       // 읽음 상태 비동기 업데이트
       if (sortedMessages.length > 0 && socket.user) {
-        const messageIds = sortedMessages.map((msg) => msg._id);
+        const messageIds = sortedMessages.map((msg) => msg.id);
         Message.updateMany(
           {
             _id: { $in: messageIds },
@@ -374,7 +374,7 @@ module.exports = function (io) {
       }
 
       socket.user = {
-        id: user._id.toString(),
+        id: user.id.toString(),
         name: user.name,
         email: user.email,
         sessionId: sessionId,
@@ -863,12 +863,12 @@ module.exports = function (io) {
                   ]);
                   io.to(room).emit('aegyoMessageComplete', {
                     messageId: aegyoStreamId,
-                    _id: message._id,
+                    _id: message.id,
                     content: finalContent,
                     timestamp: new Date(),
                     isComplete: true,
                     sender: {
-                      id: String(message.sender._id || message.sender.id),
+                      id: String(message.sender.id || message.sender.id),
                       name: message.sender.name,
                       email: message.sender.email,
                       profileImage: message.sender.profileImage
@@ -903,8 +903,8 @@ module.exports = function (io) {
             let fileId;
             if (typeof fileData === 'string') {
               fileId = fileData;
-            } else if (fileData._id) {
-              fileId = fileData._id;
+            } else if (fileData.id) {
+              fileId = fileData.id;
             } else if (fileData.id) {
               fileId = fileData.id;
             } else if (fileData.filename) {
@@ -916,7 +916,7 @@ module.exports = function (io) {
               }).sort({ uploadDate: -1 }); // 가장 최근 파일
 
               if (fileByName) {
-                fileId = fileByName._id;
+                fileId = fileByName.id;
                 console.log('Found file by filename:', fileId);
               } else {
                 console.error('File not found by filename:', fileData.filename);
@@ -940,7 +940,7 @@ module.exports = function (io) {
               room,
               sender: socket.user.id,
               type: "file",
-              file: file._id,
+              file: file.id,
               content: content || "",
               timestamp: new Date(),
               reactions: {},
@@ -997,7 +997,7 @@ module.exports = function (io) {
         await SessionService.updateLastActivity(socket.user.id);
 
         logDebug("message processed", {
-          messageId: message._id,
+          messageId: message.id,
           type: message.type,
           room,
         });
@@ -1535,7 +1535,7 @@ module.exports = function (io) {
           // 완료 메시지 전송
           io.to(room).emit("aiMessageComplete", {
             messageId,
-            _id: aiMessage._id,
+            _id: aiMessage.id,
             content: finalContent.content,
             aiType: aiName,
             timestamp: new Date(),
